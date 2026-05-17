@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-type-test:
+    name: lint + type + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check src tests
+
+      - name: Ruff format check
+        run: ruff format --check src tests
+
+      - name: Mypy
+        run: mypy src
+
+      - name: Pytest with coverage
+        run: |
+          pytest -q --cov=src/memo --cov-report=term-missing --cov-report=xml
+
+      # §11.2: coverage gate on the math-critical modules.
+      # Phase 1 ships only labels/types/config/seed/logging; the gated modules
+      # arrive in Phases 2-6. Once they exist, this step starts enforcing 85%.
+      - name: Coverage gate (§11.2 modules)
+        run: |
+          targets="src/memo/fusion.py src/memo/pipeline.py src/memo/preprocessing src/memo/augment src/memo/losses.py src/memo/eval/metrics.py"
+          existing=""
+          for t in $targets; do
+            if [ -e "$t" ]; then existing="$existing $t"; fi
+          done
+          if [ -z "$existing" ]; then
+            echo "No §11.2 modules exist yet — coverage gate is informational."
+          else
+            echo "Enforcing 85% coverage on:$existing"
+            coverage report --include="$(echo $existing | tr ' ' ',')" --fail-under=85
+          fi
+
+      - name: Upload coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  onnx-parity:
+    name: ONNX parity smoke (placeholder)
+    runs-on: ubuntu-latest
+    # Enabled in Phase 13 once src/memo/export.py and tests/test_export.py exist.
+    if: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: ONNX parity smoke
+        run: pytest -q tests/test_export.py

@@ -1,0 +1,29 @@
+# Per-modality augmentation knobs (§4.1).
+# Used at train time only — preprocessing/* is stateless and deterministic.
+
+image:
+  randaugment:
+    n: 2
+    m: 9
+  horizontal_flip: true
+  random_erasing_p: 0.25
+  mixup:
+    alpha: 0.2
+    last_fraction: 0.5               # active only during the last 50% of epochs.
+
+text:
+  token_dropout: 0.05
+
+audio:
+  specaugment:
+    time_masks: 2
+    time_max_frames: 30
+    freq_masks: 2
+    freq_max_bins: 12
+  noise:
+    min_snr_db: 10
+    max_snr_db: 30
+  gain_db: 6.0                       # ±6 dB random gain.
+  time_stretch:
+    min: 0.9
+    max: 1.1                         # librosa.effects.time_stretch.

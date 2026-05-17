@@ -1,0 +1,150 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memo"
+version = "0.1.0"
+description = "Multimodal emotion recognition: face + text + speech -> Ekman-7, with calibrated late fusion."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Asher Khan" }]
+keywords = ["multimodal", "emotion-recognition", "late-fusion", "edge-ml"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.2",
+    "torchvision",
+    "torchaudio",
+    "numpy",
+    "Pillow",
+    "soundfile",
+    "librosa",
+    "transformers",
+    "tokenizers",
+    "mediapipe",
+    "peft",
+    "onnx",
+    "onnxruntime",
+    "typer[all]",
+    "pyyaml",
+    "loguru",
+    "scikit-learn",
+    "matplotlib",
+    "fvcore",
+    "psutil",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "types-PyYAML",
+]
+demo = [
+    "gradio",
+]
+
+[project.scripts]
+memo = "memo.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/asherk/memo"
+Repository = "https://github.com/asherk/memo"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+memo = ["py.typed"]
+
+# ---------------- Ruff ----------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+extend-exclude = ["documentation"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line length handled by formatter
+    "N806", # variable name should be lowercase (we use mathematical names like T_i)
+    "N803", # argument name should be lowercase
+    "B008", # do not perform function calls in argument defaults (typer uses this)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "N802"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------- Mypy ----------------
+[tool.mypy]
+python_version = "3.10"
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = false
+disallow_untyped_defs = false
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = true
+exclude = ["documentation/", "build/", "dist/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# ---------------- Pytest ----------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: tests that require network or large model downloads (skipped by default in CI)",
+]
+
+# ---------------- Coverage ----------------
+# §11.2: gate is 85% on src/memo/{fusion,pipeline,preprocessing,augment,losses,eval/metrics}.py.
+# Those modules don't exist until Phases 2-6, so fail_under starts at 0 here and is raised
+# to 85 once the listed modules land. Phase 15 verifies the final gate is in place.
+[tool.coverage.run]
+source = ["src/memo"]
+branch = true
+omit = [
+    "src/memo/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+fail_under = 0

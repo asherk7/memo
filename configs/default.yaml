@@ -1,0 +1,81 @@
+# Default experiment config. Loaded via `ExperimentConfig.from_yaml(path)`.
+# Every key here maps onto a typed dataclass in `src/memo/config.py` — values
+# below are the canonical defaults referenced by ARCHITECTURE.md §3-§4.
+
+seed: 42
+
+paths:
+  checkpoints: checkpoints
+  data: data
+  runs: runs
+
+model:
+  encoders:
+    image:
+      backbone: mobilenet_v3_small
+      weights: IMAGENET1K_V1        # §2.1 — never `null`; that drops pretraining.
+      image_size: 112
+      checkpoint: null
+    text:
+      backbone: sentence-transformers/all-MiniLM-L6-v2
+      head_dropout: 0.1
+      checkpoint: null
+    audio:
+      sample_rate: 16000
+      n_mels: 64
+      window_seconds: 3.0
+      checkpoint: null
+
+  fusion:
+    # The 7 trainable scalars (§3.1) are model state; these are init values.
+    abstention_threshold: 0.40       # τ — config constant, NOT learned.
+    gamma_init: 1.0                  # γ sharpness.
+    temperature_init: 1.0            # T_i for each modality.
+    weight_init: 0.0                 # w_i — softmax(w) starts uniform.
+    checkpoint: null
+
+  lora:
+    enabled: false                   # `memo train text --lora` flips this.
+    r: 8
+    alpha: 16
+    target_modules:
+      - last_2_transformer_layers    # peft will resolve to actual module names.
+
+  kd:
+    enabled: false                   # `memo train audio --distill` flips this.
+    teacher: facebook/wav2vec2-base
+    alpha: 0.5
+    temperature: 4.0
+
+train:
+  epochs: 15
+  batch_size: 32
+  freeze_backbone_epochs: 3          # §4.1 — single requires_grad toggle, not a second optimizer.
+  grad_clip: 1.0
+  ema_decay: 0.999
+  early_stopping_patience: 5         # on val macro-F1.
+
+  optimizer:
+    backbone_lr: 1.0e-5              # §4.1 — two AdamW param groups.
+    head_lr: 1.0e-3
+    weight_decay: 0.01
+
+  scheduler:
+    name: onecycle                   # OneCycleLR with per-modality max_lr (§4.1).
+    max_lr:
+      image: 3.0e-3
+      text_head: 1.0e-3
+      audio: 5.0e-3
+
+  focal_loss:
+    gamma: 2.0                       # §4.1 — focal × label-smoothing combined loss.
+    label_smoothing: 0.05
+    class_weight_beta: 0.9999        # Cui 2019 effective-number-of-samples.
+
+  modality_dropout:
+    rate: 0.3                        # per-sample drop in stages 2 + 3 (§4.5).
+    text_rate: 0.15                  # asymmetric — text is usually highest quality.
+
+  calibration:
+    epochs: 200                      # §3.4 — 7 scalars, AdamW, lr=1e-2, seconds on CPU.
+    lr: 1.0e-2
