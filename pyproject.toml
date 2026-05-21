@@ -94,6 +94,7 @@ ignore = [
     "E501", # line length handled by formatter
     "N806", # variable name should be lowercase (we use mathematical names like T_i)
     "N803", # argument name should be lowercase
+    "N812", # lowercase imported as non-lowercase (torch.nn.functional as F is universal)
     "B008", # do not perform function calls in argument defaults (typer uses this)
 ]
 
