@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from .pipeline import MultimodalEmotionPipeline
 from .types import EmotionPrediction
 
-__all__ = ["EmotionPrediction", "__version__"]
-
-# Phase 6 will append MultimodalEmotionPipeline once `src/memo/pipeline.py` lands.
+__all__ = ["EmotionPrediction", "MultimodalEmotionPipeline", "__version__"]
 
 __version__ = "0.1.0"
