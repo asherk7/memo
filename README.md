@@ -73,6 +73,8 @@ pip install -e ".[dev]"    # + ruff, mypy, pytest
 
 memo uses a three-stage training schedule. Stages 1 and 3 are mandatory; stage 2 requires aligned multimodal data.
 
+Before training, acquire the datasets — see [`docs/data_setup.md`](docs/data_setup.md) for per-dataset sources, licenses, on-disk layout, and Ekman-7 label mappings. Enumerate them with `python scripts/download_data.py --dry-run`.
+
 ### Stage 1 — Per-modality encoders (independent)
 
 Train each encoder on its own single-modality dataset:
