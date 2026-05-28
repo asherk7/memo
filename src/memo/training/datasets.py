@@ -14,13 +14,23 @@ import csv
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 
 from ..labels import EkmanEmotion
 
-__all__ = ["CsvDataset", "JsonlDataset", "MODALITY_KEYS"]
+if TYPE_CHECKING:
+    from ..config import ExperimentConfig
+    from ..losses import FocalLoss
+
+__all__ = [
+    "CsvDataset",
+    "JsonlDataset",
+    "MODALITY_KEYS",
+    "stratified_train_val_split",
+    "focal_loss_from_labels",
+]
 
 MODALITY_KEYS: tuple[str, ...] = ("image", "text", "audio")
 
@@ -144,3 +154,70 @@ class JsonlDataset(Dataset):
             else:
                 inputs[modality] = loader(_resolve(self.root, raw))
         return inputs, self.labels[idx]
+
+
+# ---------------------------------------------------------------------------
+# Shared split helper
+# ---------------------------------------------------------------------------
+
+
+def stratified_train_val_split(
+    dataset: CsvDataset,
+    val_split: float,
+    seed: int,
+) -> tuple[Subset, list[int], Subset, list[int]]:
+    """Stratified train / val split of a `CsvDataset`.
+
+    Falls back to a plain random split when the dataset is too small for
+    stratification (fewer val samples than distinct classes).  Returns
+    ``(train_subset, train_labels, val_subset, val_labels)``.
+    """
+    from sklearn.model_selection import train_test_split
+
+    indices = list(range(len(dataset)))
+    try:
+        train_idx, val_idx = train_test_split(
+            indices, test_size=val_split, stratify=dataset.labels, random_state=seed
+        )
+    except ValueError:
+        train_idx, val_idx = train_test_split(
+            indices, test_size=val_split, random_state=seed
+        )
+
+    return (
+        Subset(dataset, train_idx),
+        [dataset.labels[i] for i in train_idx],
+        Subset(dataset, val_idx),
+        [dataset.labels[i] for i in val_idx],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shared loss factory
+# ---------------------------------------------------------------------------
+
+
+def focal_loss_from_labels(labels: list[int], cfg: ExperimentConfig) -> FocalLoss:
+    """Build a `FocalLoss` with Cui-2019 effective-number class weights from a label list.
+
+    Counts are clamped to ≥ 1 so absent classes never produce a division-by-zero
+    in `effective_number_weights` — they simply receive the weight of a class
+    with a single sample (the highest weight, as they are the rarest).
+    """
+    import torch
+
+    from ..labels import NUM_CLASSES
+    from ..losses import FocalLoss as _FocalLoss
+    from ..losses import effective_number_weights
+
+    counts = torch.zeros(NUM_CLASSES, dtype=torch.float32)
+    for lab in labels:
+        counts[lab] += 1
+    weights = effective_number_weights(
+        counts.clamp(min=1), beta=cfg.train.focal_loss.class_weight_beta
+    )
+    return _FocalLoss(
+        gamma=cfg.train.focal_loss.gamma,
+        label_smoothing=cfg.train.focal_loss.label_smoothing,
+        class_weights=weights,
+    )

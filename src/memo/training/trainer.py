@@ -28,6 +28,10 @@ from ..encoders.base import BaseEncoder
 __all__ = ["Trainer", "TrainResult", "build_param_groups"]
 
 LossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+# batch_hook(model, inputs_on_device, targets_on_device, epoch) -> loss
+# When set, replaces the default `loss_fn(model.predict_logits(inputs), targets)`.
+# Useful for Mixup (image) or other epoch-aware loss transformations.
+BatchHook = Callable[[BaseEncoder, Any, torch.Tensor, int], torch.Tensor]
 
 
 @dataclass
@@ -44,18 +48,18 @@ class TrainResult:
 def build_param_groups(
     model: nn.Module, backbone_lr: float, head_lr: float
 ) -> list[dict[str, Any]]:
-    """Split params into a slow backbone group and a fast head group (§4.1).
+    """Split *trainable* params into a slow backbone group and a fast head group (§4.1).
 
-    Params under a ``backbone`` submodule go to the backbone group; everything
-    else (heads, projections, LoRA adapters) goes to the head group. A model
-    without a ``backbone`` attribute trains as a single head-rate group — which
-    is exactly what the stub encoders in tests want.
+    Only params with ``requires_grad=True`` are included — frozen backbone weights
+    (e.g. a locked MiniLM) don't waste optimizer state, and only LoRA adapters
+    land in the backbone group for the text-LoRA path. A model without a
+    ``backbone`` attribute trains as a single head-rate group.
     """
     backbone = getattr(model, "backbone", None)
     backbone_ids = {id(p) for p in backbone.parameters()} if backbone is not None else set()
 
-    backbone_params = [p for p in model.parameters() if id(p) in backbone_ids]
-    head_params = [p for p in model.parameters() if id(p) not in backbone_ids]
+    backbone_params = [p for p in model.parameters() if p.requires_grad and id(p) in backbone_ids]
+    head_params = [p for p in model.parameters() if p.requires_grad and id(p) not in backbone_ids]
 
     groups: list[dict[str, Any]] = []
     if backbone_params:
@@ -88,12 +92,16 @@ class Trainer:
         max_lr: float,
         device: str | torch.device = "cpu",
         use_ema: bool = True,
+        freeze_backbone_curriculum: bool = True,
+        batch_hook: BatchHook | None = None,
     ) -> None:
         self.model: BaseEncoder = model.to(device)
         self.loss_fn = loss_fn
         self.config = config
         self.max_lr = max_lr
         self.device = torch.device(device)
+        self.freeze_backbone_curriculum = freeze_backbone_curriculum
+        self.batch_hook = batch_hook
 
         self.param_groups = build_param_groups(
             model, config.optimizer.backbone_lr, config.optimizer.head_lr
@@ -112,6 +120,10 @@ class Trainer:
 
     # --- backbone freeze curriculum (single requires_grad toggle, §4.1) -----
     def _set_backbone_frozen(self, frozen: bool) -> None:
+        # When freeze_backbone_curriculum=False the encoder fully controls
+        # requires_grad (e.g. frozen MiniLM or LoRA-only text path).
+        if not self.freeze_backbone_curriculum:
+            return
         backbone = getattr(self.model, "backbone", None)
         if backbone is None:
             return
@@ -158,7 +170,7 @@ class Trainer:
 
         for epoch in range(epochs):
             self._set_backbone_frozen(epoch < self.config.freeze_backbone_epochs)
-            epoch_loss = self._train_epoch(train_loader, scheduler, result)
+            epoch_loss = self._train_epoch(train_loader, scheduler, result, epoch)
             result.epoch_losses.append(epoch_loss)
 
             if val_loader is None:
@@ -191,14 +203,16 @@ class Trainer:
         train_loader: DataLoader,
         scheduler: torch.optim.lr_scheduler.OneCycleLR,
         result: TrainResult,
+        epoch: int,
     ) -> float:
         self.model.train()
         total, n_batches = 0.0, 0
         for inputs, targets in train_loader:
             targets = targets.to(self.device)
-            logits = self.model.predict_logits(self._to_device(inputs))
-
-            loss = self.loss_fn(logits, targets)
+            if self.batch_hook is not None:
+                loss = self.batch_hook(self.model, self._to_device(inputs), targets, epoch)
+            else:
+                loss = self.loss_fn(self.model.predict_logits(self._to_device(inputs)), targets)
             self.optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(self.model.parameters(), self.config.grad_clip)
