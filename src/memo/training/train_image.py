@@ -81,12 +81,9 @@ def _make_mixup_hook(loss_fn: LossFn, total_epochs: int, alpha: float = 0.2) -> 
             return loss_fn(model.predict_logits(inputs), targets)
         mb = mixup(inputs, targets, alpha=alpha)
         logits = model.predict_logits(mb.images)
-        return mb.lam * loss_fn(logits, mb.labels_a) + (1.0 - mb.lam) * loss_fn(
-            logits, mb.labels_b
-        )
+        return mb.lam * loss_fn(logits, mb.labels_a) + (1.0 - mb.lam) * loss_fn(logits, mb.labels_b)
 
     return hook
-
 
 
 def run_train_image(
@@ -99,6 +96,7 @@ def run_train_image(
     runs_dir: Path = Path("runs"),
     remap_from: str = "fer2013",
     val_split: float = 0.1,
+    mixup_alpha: float | None = None,
     loader: Callable[[str], torch.Tensor] | None = None,
     encoder: BaseEncoder | None = None,
 ) -> Path:
@@ -114,6 +112,8 @@ def run_train_image(
         remap_from: which dataset remapper to apply (``fer2013`` | ``affectnet7``
             | ``ekman7``).
         val_split: fraction of train data to hold out when ``val.csv`` is absent.
+        mixup_alpha: overrides ``config.train.mixup_alpha`` when given; 0 disables
+            Mixup (§4 detail 5).
         loader: custom image-loader for tests (receives resolved path, returns
             ``(3, 112, 112)`` tensor).  ``None`` uses the real face-preprocessing.
         encoder: encoder to train; ``None`` uses pretrained MobileNetV3-Small.
@@ -123,6 +123,8 @@ def run_train_image(
     """
     cfg = config or ExperimentConfig()
     cfg.train.epochs = epochs
+    if mixup_alpha is not None:
+        cfg.train.mixup_alpha = mixup_alpha
     seed_everything(cfg.seed)
 
     remap = _REMAPPERS.get(remap_from)
@@ -149,10 +151,14 @@ def run_train_image(
         train_sub: Subset | CsvDataset = full_ds
         train_labels = full_ds.labels
     else:
-        train_sub, train_labels, val_ds, _ = stratified_train_val_split(full_ds, val_split, cfg.seed)
+        train_sub, train_labels, val_ds, _ = stratified_train_val_split(
+            full_ds, val_split, cfg.seed
+        )
 
     sampler = ClassBalancedSampler(
-        train_labels, beta=cfg.train.focal_loss.class_weight_beta, generator=torch.Generator().manual_seed(cfg.seed)
+        train_labels,
+        beta=cfg.train.focal_loss.class_weight_beta,
+        generator=torch.Generator().manual_seed(cfg.seed),
     )
     train_dl = DataLoader(train_sub, batch_size=cfg.train.batch_size, sampler=sampler)
     val_dl = DataLoader(val_ds, batch_size=cfg.train.batch_size * 2)
@@ -160,7 +166,13 @@ def run_train_image(
     # ---- model + loss ---------------------------------------------------
     enc = encoder if encoder is not None else MobileNetV3SmallFaceEncoder(pretrained=True)
     loss_fn = focal_loss_from_labels(train_labels, cfg)
-    hook = _make_mixup_hook(loss_fn, epochs)
+    # Mixup is opt-out via config: mixup_alpha=0 leaves batch_hook=None so the
+    # Trainer uses the plain loss path with no Mixup overhead (§4 detail 5).
+    hook = (
+        _make_mixup_hook(loss_fn, epochs, cfg.train.mixup_alpha)
+        if cfg.train.mixup_alpha > 0
+        else None
+    )
 
     trainer = Trainer(
         enc,

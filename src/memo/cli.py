@@ -36,11 +36,16 @@ def train_image(
     data: Path = typer.Option(..., help="Data directory with train.csv (path, label)."),
     epochs: int = typer.Option(15, help="Training epochs."),
     out: Path = typer.Option(Path("checkpoints/image.pt"), help="Checkpoint output path."),
-    remap_from: str = typer.Option("fer2013", help="Label remapper: fer2013 | affectnet7 | ekman7."),
+    remap_from: str = typer.Option(
+        "fer2013", help="Label remapper: fer2013 | affectnet7 | ekman7."
+    ),
     config: Path | None = typer.Option(None, help="Optional YAML config path."),
     device: str = typer.Option("cpu", help="Torch device."),
     runs_dir: Path = typer.Option(Path("runs"), help="Root dir for run artifacts."),
     val_split: float = typer.Option(0.1, help="Validation fraction when val.csv is absent."),
+    mixup_alpha: float = typer.Option(
+        0.2, help="Mixup α (image-only, last 50% of epochs). Set to 0 to disable."
+    ),
 ) -> None:
     """Train the image (face) encoder on FER2013 / AffectNet-7."""
     from .config import ExperimentConfig
@@ -56,6 +61,7 @@ def train_image(
         runs_dir=runs_dir,
         remap_from=remap_from,
         val_split=val_split,
+        mixup_alpha=mixup_alpha,
     )
     typer.echo(json.dumps({"manifest": str(manifest_path), "checkpoint": str(out)}))
 

@@ -176,7 +176,9 @@ def run_train_text(
         train_sub: Subset | CsvDataset = full_ds
         train_labels = full_ds.labels
     else:
-        train_sub, train_labels, val_ds, _ = stratified_train_val_split(full_ds, val_split, cfg.seed)
+        train_sub, train_labels, val_ds, _ = stratified_train_val_split(
+            full_ds, val_split, cfg.seed
+        )
 
     sampler = ClassBalancedSampler(
         train_labels,

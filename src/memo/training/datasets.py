@@ -180,9 +180,7 @@ def stratified_train_val_split(
             indices, test_size=val_split, stratify=dataset.labels, random_state=seed
         )
     except ValueError:
-        train_idx, val_idx = train_test_split(
-            indices, test_size=val_split, random_state=seed
-        )
+        train_idx, val_idx = train_test_split(indices, test_size=val_split, random_state=seed)
 
     return (
         Subset(dataset, train_idx),

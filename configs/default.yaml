@@ -54,6 +54,7 @@ train:
   grad_clip: 1.0
   ema_decay: 0.999
   early_stopping_patience: 5         # on val macro-F1.
+  mixup_alpha: 0.2                   # §4.1 — image-only, last 50% of epochs; 0 disables.
 
   optimizer:
     backbone_lr: 1.0e-5              # §4.1 — two AdamW param groups.

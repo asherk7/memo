@@ -156,6 +156,10 @@ class TrainConfig:
     grad_clip: float = 1.0
     ema_decay: float = 0.999
     early_stopping_patience: int = 5
+    # Mixup α for image training (§4.1, §4.4). Active only in the last 50% of
+    # epochs; set to 0 to disable Mixup entirely (the documented escape hatch
+    # for when its soft labels conflict with focal loss, §4 detail 5).
+    mixup_alpha: float = 0.2
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     focal_loss: FocalLossConfig = field(default_factory=FocalLossConfig)

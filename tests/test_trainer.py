@@ -28,9 +28,7 @@ def _train_config(epochs: int) -> ExperimentConfig:
     return cfg
 
 
-def test_trainer_loss_decreases_and_checkpoint_reloads(
-    tmp_path: Path, dummy_image_encoder
-) -> None:
+def test_trainer_loss_decreases_and_checkpoint_reloads(tmp_path: Path, dummy_image_encoder) -> None:
     seed_everything(0)
     cfg = _train_config(epochs=8)
     dataset = _image_slice(32)
@@ -58,9 +56,7 @@ def test_trainer_loss_decreases_and_checkpoint_reloads(
     trainer.model.eval()
     reloaded.eval()
     with torch.no_grad():
-        assert torch.allclose(
-            trainer.model.predict_logits(probe), reloaded.predict_logits(probe)
-        )
+        assert torch.allclose(trainer.model.predict_logits(probe), reloaded.predict_logits(probe))
 
 
 def test_trainer_early_stopping_and_macro_f1(dummy_image_encoder) -> None:

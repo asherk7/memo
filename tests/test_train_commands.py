@@ -287,3 +287,33 @@ def test_mixup_hook_loss_math() -> None:
     # Late epoch (epoch >= total_epochs // 2 = 2): Mixup path.
     loss_late = hook(enc, inputs, targets, 2)
     assert loss_late.ndim == 0 and loss_late.item() > 0
+
+
+def test_train_image_mixup_disabled(tmp_path: Path) -> None:
+    """mixup_alpha=0 disables Mixup (no batch_hook) and still trains end-to-end."""
+    from memo.training.train_image import run_train_image
+
+    def _fake_image_loader(_path: str) -> Tensor:
+        return torch.randn(3, 112, 112)
+
+    n = 32
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    _make_csv(
+        data_dir / "train.csv",
+        [{"path": f"{i}.png", "label": i % NUM_CLASSES} for i in range(n)],
+        ["path", "label"],
+    )
+
+    ckpt = tmp_path / "image_nomix.pt"
+    run_train_image(
+        data_dir,
+        epochs=4,
+        out=ckpt,
+        remap_from="ekman7",
+        mixup_alpha=0.0,
+        loader=_fake_image_loader,
+        encoder=_StubEncoder("image", input_dim=3 * 112 * 112),
+        runs_dir=tmp_path / "runs",
+    )
+    _assert_run_produced_artifacts(tmp_path / "runs", ckpt)
