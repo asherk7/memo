@@ -109,7 +109,6 @@ def test_experiment_config_loads_default_yaml() -> None:
     assert cfg.model.encoders.image.image_size == 112
     assert cfg.model.encoders.text.backbone == "sentence-transformers/all-MiniLM-L6-v2"
     assert cfg.model.fusion.abstention_threshold == 0.40
-    assert cfg.model.lora.enabled is False
     assert cfg.model.kd.enabled is False
     assert cfg.train.optimizer.backbone_lr == 1.0e-5
     assert cfg.train.modality_dropout.text_rate == 0.15

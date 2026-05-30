@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 
-from memo.losses import FocalLoss, KDLoss, LabelSmoothingCE, effective_number_weights
+from memo.losses import FocalLoss, KDLoss, effective_number_weights
 
 
 def test_focal_gamma0_equals_ce() -> None:
@@ -18,22 +18,14 @@ def test_focal_gamma0_equals_ce() -> None:
 
 def test_label_smoothing_closed_form() -> None:
     # 1 sample, 3 classes, logits [2,1,0], target 0, eps 0.1.
-    # Hand-derived loss = 0.50760 (see ROADMAP Phase 4 notes).
+    # Hand-derived loss = 0.50760. FocalLoss(gamma=0) is the label-smoothed CE.
     logits = torch.tensor([[2.0, 1.0, 0.0]])
     targets = torch.tensor([0])
-    loss = LabelSmoothingCE(label_smoothing=0.1)(logits, targets)
+    loss = FocalLoss(gamma=0.0, label_smoothing=0.1)(logits, targets)
     assert torch.allclose(loss, torch.tensor(0.50760), atol=1e-4)
     # Cross-check against PyTorch's own label smoothing.
     torch_ref = F.cross_entropy(logits, targets, label_smoothing=0.1)
     assert torch.allclose(loss, torch_ref, atol=1e-6)
-
-
-def test_focal_smoothing_equals_labelsmoothingce_at_gamma0() -> None:
-    logits = torch.randn(16, 7)
-    targets = torch.randint(0, 7, (16,))
-    fl = FocalLoss(gamma=0.0, label_smoothing=0.05)(logits, targets)
-    ls = LabelSmoothingCE(label_smoothing=0.05)(logits, targets)
-    assert torch.allclose(fl, ls, atol=1e-6)
 
 
 def test_kd_alpha1_reduces_to_focal() -> None:

@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Best-effort dataset acquisition helper (Phase 7).
 
-Enumerates every dataset MEMO trains on, where to get it, the on-disk target
-path, and whether acquisition is automatic or requires manually accepting a
-license. ``--dry-run`` prints that table without touching the network — it is
-the source of truth `docs/data_setup.md` mirrors.
-
-License-gated datasets (AffectNet) are never auto-downloaded; the script prints
-the request URL and the path it expects you to populate by hand.
+Enumerates every dataset MEMO trains on, where to get it, and the on-disk
+target path. ``--dry-run`` prints that table without touching the network — it
+is the source of truth `docs/data_setup.md` mirrors.
 """
 
 from __future__ import annotations
@@ -37,13 +33,6 @@ DATASETS: tuple[DatasetSpec, ...] = (
         notes="Kaggle download (needs `kaggle` CLI + API token). 48x48 grayscale faces.",
     ),
     DatasetSpec(
-        name="AffectNet-7",
-        url="http://mohammadmahoor.com/affectnet/",
-        target="affectnet/",
-        license="manual",
-        notes="License-gated. Request access, then place the 7-class split here.",
-    ),
-    DatasetSpec(
         name="GoEmotions",
         url="https://huggingface.co/datasets/google-research-datasets/go_emotions",
         target="goemotions/",
@@ -56,13 +45,6 @@ DATASETS: tuple[DatasetSpec, ...] = (
         target="ravdess/",
         license="auto",
         notes="Zenodo direct download (Audio_Speech_Actors_01-24.zip). 1440 clips.",
-    ),
-    DatasetSpec(
-        name="CREMA-D",
-        url="https://github.com/CheyneyComputerScience/CREMA-D",
-        target="cremad/",
-        license="auto",
-        notes="GitHub repo (AudioWAV/). 7442 clips, no surprise class.",
     ),
 )
 

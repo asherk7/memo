@@ -12,9 +12,8 @@ The ``text`` column is the raw sentence; ``label`` is the native GoEmotions
 integer (0–27) when ``--remap-from goemotions``, or 0–6 Ekman when ``ekman7``.
 
 The backbone stays frozen throughout (§4.1: only the ~50K-param head trains).
-With ``--lora``, r=8 adapters on the last 2 transformer layers train instead.
-The Trainer's backbone-freeze curriculum is disabled so peft's own
-``requires_grad`` setup is never overwritten.
+The Trainer's backbone-freeze curriculum is disabled so the encoder's own
+``requires_grad`` setup (frozen MiniLM) is never overwritten.
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ import torch
 from loguru import logger
 from torch.utils.data import DataLoader, Subset
 
-from ..augment.text import token_dropout
 from ..config import ExperimentConfig
 from ..encoders.base import BaseEncoder
 from ..encoders.text import MiniLMTextEncoder
@@ -46,17 +44,9 @@ _REMAPPERS: dict[str, Callable[[Any], EkmanEmotion]] = {
     "ekman7": lambda x: EkmanEmotion(int(x)),
 }
 
-# Token-dropout probability for train collation.
-_TRAIN_DROPOUT_P = 0.05
 
-
-def text_collate_fn(
-    batch: list[tuple[str, int]],
-    *,
-    is_train: bool = False,
-    p_dropout: float = _TRAIN_DROPOUT_P,
-) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
-    """Tokenize a batch of (text, label) pairs with optional token dropout.
+def text_collate_fn(batch: list[tuple[str, int]]) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
+    """Tokenize a batch of (text, label) pairs.
 
     Calling the tokenizer on the full batch (rather than per-sample) ensures
     proper dynamic padding — shorter sequences in the batch are padded to the
@@ -64,42 +54,19 @@ def text_collate_fn(
     """
     texts, labels = zip(*batch, strict=False)
     tokens = preprocess_text(list(texts))
-    if is_train and p_dropout > 0.0:
-        tokens["input_ids"], tokens["attention_mask"] = token_dropout(
-            tokens["input_ids"], tokens["attention_mask"], p=p_dropout
-        )
     return tokens, torch.tensor(labels, dtype=torch.long)
 
 
-def _make_train_collate(p_dropout: float = _TRAIN_DROPOUT_P) -> Callable:
-    def _collate(batch: list[tuple[Any, int]]) -> tuple[Any, torch.Tensor]:
-        # Batch may contain pre-tokenized dicts (injected loader) or raw strings.
-        first_item = batch[0][0]
-        if isinstance(first_item, dict):
-            # Pre-tokenized path (smoke tests / custom loaders).
-            dicts, labels = zip(*batch, strict=False)
-            stacked = {k: torch.stack([d[k] for d in dicts]) for k in first_item}
-            if p_dropout > 0.0:
-                stacked["input_ids"], stacked["attention_mask"] = token_dropout(
-                    stacked["input_ids"], stacked["attention_mask"], p=p_dropout
-                )
-            return stacked, torch.tensor(labels, dtype=torch.long)
-        # Raw string path: batch-tokenize for proper padding.
-        return text_collate_fn(batch, is_train=True, p_dropout=p_dropout)
-
-    return _collate
-
-
-def _make_val_collate() -> Callable:
-    def _collate(batch: list[tuple[Any, int]]) -> tuple[Any, torch.Tensor]:
-        first_item = batch[0][0]
-        if isinstance(first_item, dict):
-            dicts, labels = zip(*batch, strict=False)
-            stacked = {k: torch.stack([d[k] for d in dicts]) for k in first_item}
-            return stacked, torch.tensor(labels, dtype=torch.long)
-        return text_collate_fn(batch, is_train=False)
-
-    return _collate
+def _default_collate(batch: list[tuple[Any, int]]) -> tuple[Any, torch.Tensor]:
+    # Batch may contain pre-tokenized dicts (injected loader) or raw strings.
+    first_item = batch[0][0]
+    if isinstance(first_item, dict):
+        # Pre-tokenized path (smoke tests / custom loaders).
+        dicts, labels = zip(*batch, strict=False)
+        stacked = {k: torch.stack([d[k] for d in dicts]) for k in first_item}
+        return stacked, torch.tensor(labels, dtype=torch.long)
+    # Raw string path: batch-tokenize for proper padding.
+    return text_collate_fn(batch)
 
 
 def run_train_text(
@@ -107,7 +74,6 @@ def run_train_text(
     *,
     epochs: int = 15,
     out: Path,
-    lora: bool = False,
     config: ExperimentConfig | None = None,
     device: str = "cpu",
     runs_dir: Path = Path("runs"),
@@ -123,7 +89,6 @@ def run_train_text(
         data_dir: directory containing ``train.csv`` (columns: ``text``, ``label``).
         epochs: total training epochs.
         out: checkpoint output path.
-        lora: enable LoRA r=8 adapters on the last 2 MiniLM transformer layers.
         config: experiment config; defaults to ``ExperimentConfig()``.
         device: torch device string.
         runs_dir: root directory for run artifacts.
@@ -186,23 +151,22 @@ def run_train_text(
         generator=torch.Generator().manual_seed(cfg.seed),
     )
 
-    train_collate = collate_fn if collate_fn is not None else _make_train_collate()
-    val_collate = collate_fn if collate_fn is not None else _make_val_collate()
+    collate = collate_fn if collate_fn is not None else _default_collate
 
     train_dl = DataLoader(
         train_sub,
         batch_size=cfg.train.batch_size,
         sampler=sampler,
-        collate_fn=train_collate,
+        collate_fn=collate,
     )
     val_dl = DataLoader(
         val_ds,
         batch_size=cfg.train.batch_size * 2,
-        collate_fn=val_collate,
+        collate_fn=collate,
     )
 
     # ---- model + loss ---------------------------------------------------
-    enc = encoder if encoder is not None else MiniLMTextEncoder(lora=lora, pretrained=True)
+    enc = encoder if encoder is not None else MiniLMTextEncoder(pretrained=True)
     loss_fn = focal_loss_from_labels(train_labels, cfg)
 
     trainer = Trainer(
@@ -211,7 +175,7 @@ def run_train_text(
         cfg.train,
         max_lr=cfg.train.scheduler.max_lr.text_head,
         device=device,
-        # Text encoder manages its own requires_grad (frozen MiniLM / LoRA adapters);
+        # Text encoder manages its own requires_grad (frozen MiniLM backbone);
         # the Trainer must not overwrite that with its backbone-freeze curriculum.
         freeze_backbone_curriculum=False,
     )

@@ -30,7 +30,7 @@ __all__ = ["Trainer", "TrainResult", "build_param_groups"]
 LossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 # batch_hook(model, inputs_on_device, targets_on_device, epoch) -> loss
 # When set, replaces the default `loss_fn(model.predict_logits(inputs), targets)`.
-# Useful for Mixup (image) or other epoch-aware loss transformations.
+# Used by audio knowledge distillation (the KD loss needs teacher logits per batch).
 BatchHook = Callable[[BaseEncoder, Any, torch.Tensor, int], torch.Tensor]
 
 
@@ -51,8 +51,7 @@ def build_param_groups(
     """Split *trainable* params into a slow backbone group and a fast head group (§4.1).
 
     Only params with ``requires_grad=True`` are included — frozen backbone weights
-    (e.g. a locked MiniLM) don't waste optimizer state, and only LoRA adapters
-    land in the backbone group for the text-LoRA path. A model without a
+    (e.g. a locked MiniLM) don't waste optimizer state. A model without a
     ``backbone`` attribute trains as a single head-rate group.
     """
     backbone = getattr(model, "backbone", None)
@@ -121,7 +120,7 @@ class Trainer:
     # --- backbone freeze curriculum (single requires_grad toggle, §4.1) -----
     def _set_backbone_frozen(self, frozen: bool) -> None:
         # When freeze_backbone_curriculum=False the encoder fully controls
-        # requires_grad (e.g. frozen MiniLM or LoRA-only text path).
+        # requires_grad (e.g. the frozen-MiniLM text path).
         if not self.freeze_backbone_curriculum:
             return
         backbone = getattr(self.model, "backbone", None)

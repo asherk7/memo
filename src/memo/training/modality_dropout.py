@@ -1,7 +1,7 @@
 """Per-sample modality dropout (§4.5).
 
-Calibration (Phase 11) and joint fine-tuning (Phase 10) must see the same
-missing-modality conditions they face at inference, so each modality is dropped
+Calibration (Phase 11) must see the same missing-modality conditions it faces
+at inference, so each modality is dropped
 *independently per sample* — never the whole batch at once. A per-batch
 implementation would collapse the within-batch missing-modality diversity the
 gate is supposed to learn from.

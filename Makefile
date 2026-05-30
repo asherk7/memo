@@ -1,5 +1,5 @@
 .PHONY: help install lint format type test cov pre-commit \
-        train-image train-text train-audio train-joint \
+        train-image train-text train-audio \
         calibrate evaluate bench export demo clean
 
 PY ?= python
@@ -17,7 +17,6 @@ help:
 	@echo "  train-image    - memo train image"
 	@echo "  train-text     - memo train text"
 	@echo "  train-audio    - memo train audio"
-	@echo "  train-joint    - memo train joint"
 	@echo "  calibrate      - memo calibrate"
 	@echo "  evaluate       - memo evaluate"
 	@echo "  bench          - memo benchmark"
@@ -54,9 +53,6 @@ train-text:
 
 train-audio:
 	memo train audio $(ARGS)
-
-train-joint:
-	memo train joint $(ARGS)
 
 calibrate:
 	memo calibrate $(ARGS)

@@ -33,7 +33,6 @@ dependencies = [
     "transformers",
     "tokenizers",
     "mediapipe",
-    "peft",
     "onnx",
     "onnxruntime",
     "typer[all]",

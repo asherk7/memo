@@ -80,10 +80,9 @@ class MultimodalEmotionPipeline:
         enc = cfg.model.encoders
 
         # Honor the config knobs each encoder accepts: a null `weights` disables
-        # ImageNet pretraining (§2.1), `lora.enabled` flips the text adapters on,
-        # and the text head dropout is forwarded.
+        # ImageNet pretraining (§2.1) and the text head dropout is forwarded.
         image_encoder = MobileNetV3SmallFaceEncoder(pretrained=bool(enc.image.weights))
-        text_encoder = MiniLMTextEncoder(lora=cfg.model.lora.enabled, dropout=enc.text.head_dropout)
+        text_encoder = MiniLMTextEncoder(dropout=enc.text.head_dropout)
         audio_encoder = LogMelCRNNEncoder(n_mels=enc.audio.n_mels)
 
         _maybe_load(image_encoder, enc.image.checkpoint)

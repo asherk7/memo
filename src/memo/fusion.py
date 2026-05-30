@@ -104,10 +104,10 @@ class LateFusion(nn.Module):
 
         ``keep_mask`` (optional, keyword-only) carries **per-sample** presence:
         ``{modality: BoolTensor(B)}`` where ``False`` removes that modality from
-        a sample's gate (``m_i = 0`` for that row). It is the mechanism Phase 10
-        joint fine-tuning and Phase 11 calibration use to apply per-sample
-        modality dropout at the gate — presence stays explicit rather than being
-        inferred from zeroed logits. ``keep_mask=None`` is bit-identical to the
+        a sample's gate (``m_i = 0`` for that row). It is the mechanism Phase 11
+        calibration uses to apply per-sample modality dropout at the gate —
+        presence stays explicit rather than being inferred from zeroed logits.
+        ``keep_mask=None`` is bit-identical to the
         all-present batch-level path, so the Phase 5 tests are unaffected.
         """
         unknown = set(per_modality_logits) - set(self.MODALITIES)

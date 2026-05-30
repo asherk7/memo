@@ -14,7 +14,6 @@ __all__ = [
     "NUM_CLASSES",
     "EMOTION_NAMES",
     "remap_fer2013",
-    "remap_affectnet7",
     "remap_goemotions",
     "remap_ravdess",
     "remap_cremad",
@@ -59,23 +58,6 @@ def remap_fer2013(label: int) -> EkmanEmotion:
     """FER2013 ships labels in the same Ekman-7 order — identity map, kept
     explicit so a downstream reorder of `EkmanEmotion` would surface here."""
     return _FER2013[int(label)]
-
-
-# AffectNet-7 (drops "contempt" from AffectNet-8). Native order:
-#   0 neutral, 1 happy, 2 sad, 3 surprise, 4 fear, 5 disgust, 6 anger
-_AFFECTNET7: dict[int, EkmanEmotion] = {
-    0: EkmanEmotion.NEUTRAL,
-    1: EkmanEmotion.HAPPINESS,
-    2: EkmanEmotion.SADNESS,
-    3: EkmanEmotion.SURPRISE,
-    4: EkmanEmotion.FEAR,
-    5: EkmanEmotion.DISGUST,
-    6: EkmanEmotion.ANGER,
-}
-
-
-def remap_affectnet7(label: int) -> EkmanEmotion:
-    return _AFFECTNET7[int(label)]
 
 
 # GoEmotions: 28 fine-grained → Ekman-7 via the standard categorical mapping.

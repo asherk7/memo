@@ -1,6 +1,6 @@
 # memo
 
-Lightweight multimodal emotion recognition — fusing face, text, and audio via confidence-gated late fusion calibrated under modality dropout. CPU/edge inference, ONNX export, knowledge distillation, LoRA fine-tuning.
+Lightweight multimodal emotion recognition — fusing face, text, and audio via confidence-gated late fusion calibrated under modality dropout. CPU/edge inference, ONNX export, and knowledge distillation.
 
 [![CI](https://github.com/asherk7/memo/actions/workflows/ci.yml/badge.svg)](https://github.com/asherk7/memo/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -21,7 +21,7 @@ audio       ──► log-mel CRNN + BiGRU (~0.5M) ──► z_aud      late fus
 **Key design decisions:**
 
 - **Confidence-gated late fusion** — 7 learned scalars (temperature $T_i$, weight $w_i$, sharpness $\gamma$) calibrated under modality dropout across all $2^3 - 1 = 7$ modality subsets. "Present but garbage" modalities (silent audio, blurry face) are automatically down-weighted via normalized inverse entropy.
-- **MiniLM-L6 over DistilBERT** — 3× lighter, ~95% of downstream quality on sentence-level emotion tasks. Optional LoRA r=8 adapters (`--lora`) for parameter-efficient fine-tuning when the frozen head plateaus.
+- **MiniLM-L6 over DistilBERT** — 3× lighter, ~95% of downstream quality on sentence-level emotion tasks; the backbone stays frozen and only the ~50K-param head trains.
 - **CRNN + BiGRU + attention pooling** for audio — captures utterance-scale prosody patterns that a flat CNN misses, at 0.5M params. Optional knowledge distillation from a frozen Wav2Vec2-Base teacher (`--distill`).
 - **Modality-dropout calibration** — the single most important training step; teaches the fusion to perform honestly across all modality subsets, not just the all-present case.
 
@@ -71,7 +71,7 @@ pip install -e ".[dev]"    # + ruff, mypy, pytest
 
 ## Training
 
-memo uses a three-stage training schedule. Stages 1 and 3 are mandatory; stage 2 requires aligned multimodal data.
+memo uses a two-stage training schedule: per-modality encoder training, then fusion calibration. Both are mandatory.
 
 Before training, acquire the datasets — see [`docs/data_setup.md`](docs/data_setup.md) for per-dataset sources, licenses, on-disk layout, and Ekman-7 label mappings. Enumerate them with `python scripts/download_data.py --dry-run`.
 
@@ -80,37 +80,17 @@ Before training, acquire the datasets — see [`docs/data_setup.md`](docs/data_s
 Train each encoder on its own single-modality dataset:
 
 ```bash
-memo train image --data data/affectnet/ --epochs 20 --out checkpoints/image.pt
+memo train image --data data/fer2013/ --epochs 20 --out checkpoints/image.pt
 memo train text  --data data/goemotions/ --epochs 15 --out checkpoints/text.pt
-memo train audio --data data/ravdess+cremad/ --epochs 20 --out checkpoints/audio.pt
-
-# With LoRA fine-tuning on text
-memo train text --data data/goemotions/ --lora --out checkpoints/text_lora.pt
+memo train audio --data data/ravdess/ --epochs 20 --out checkpoints/audio.pt
 
 # With knowledge distillation for audio (Wav2Vec2-Base → CRNN)
-memo train audio --data data/ravdess+cremad/ --distill --out checkpoints/audio_kd.pt
+memo train audio --data data/ravdess/ --distill --out checkpoints/audio_kd.pt
 ```
 
-Recommended datasets: FER2013 / AffectNet-7 (image), GoEmotions → Ekman-7 (text), RAVDESS + CREMA-D (audio).
+Datasets: FER2013 (image), GoEmotions → Ekman-7 (text), RAVDESS (audio).
 
-### Stage 2 — Optional joint fine-tune (requires aligned data)
-
-```bash
-memo train joint \
-  --aligned-train data/aligned/train.jsonl \
-  --image-ckpt checkpoints/image.pt \
-  --text-ckpt  checkpoints/text.pt \
-  --audio-ckpt checkpoints/audio.pt \
-  --out checkpoints/joint.pt
-```
-
-Aligned JSONL format (any modality field may be absent):
-
-```json
-{"id": "abc", "image": "img/abc.jpg", "text": "...", "audio": "wav/abc.wav", "label": "happiness"}
-```
-
-### Stage 3 — Fusion calibration (always run)
+### Stage 2 — Fusion calibration (always run)
 
 ```bash
 memo calibrate \
@@ -143,7 +123,7 @@ Results are written to `runs/<id>/` and summarized in `docs/results.md`. Primary
 |---|---|---|---|
 | Image only | FER2013 val | macro-F1 | ≥ 0.65 |
 | Text only | GoEmotions → Ekman-7 | macro-F1 | ≥ 0.55 |
-| Audio only | RAVDESS (5-fold) | UAR | ≥ 0.70 |
+| Audio only | RAVDESS | UAR | ≥ 0.70 |
 | Audio + KD | RAVDESS | UAR | ≥ 0.74 |
 | **Fused (all 3)** | aligned val | **macro-F1** | **≥ 0.75** |
 | Fused — 1 modality dropped | same | macro-F1 | ≥ within 5 pts of all-3 |
@@ -184,7 +164,7 @@ Image upload + text input + microphone recording → live emotion prediction wit
 
 ```
 memo predict    --image / --text / --audio       # inference (any subset)
-memo train      {image,text,audio,joint}         # training stages
+memo train      {image,text,audio}              # per-modality encoder training
 memo calibrate  --aligned-val                    # fusion calibration (stage 3)
 memo evaluate   --aligned-test                   # evaluation harness
 memo benchmark  --runs N                         # CPU latency profiling
@@ -212,7 +192,7 @@ memo demo                                        # Gradio demo
                     ▼                  ▼                  ▼
            ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
            │ MobileNetV3-S │  │  MiniLM-L6    │  │ log-mel CRNN  │
-           │ ImageNet pre  │  │ (frozen/LoRA) │  │ CNN→BiGRU→attn│
+           │ ImageNet pre  │  │   (frozen)    │  │ CNN→BiGRU→attn│
            │ + 7-way head  │  │ + 2-layer MLP │  │ + 7-way head  │
            │ ~2.5M params  │  │ ~22M + 50K    │  │ ~0.5M params  │
            └───────────────┘  └───────────────┘  └───────────────┘

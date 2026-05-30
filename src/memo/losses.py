@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-__all__ = ["FocalLoss", "LabelSmoothingCE", "KDLoss", "effective_number_weights"]
+__all__ = ["FocalLoss", "KDLoss", "effective_number_weights"]
 
 
 def effective_number_weights(
@@ -89,21 +89,6 @@ class FocalLoss(nn.Module):
         if self.class_weights is not None:
             loss = loss * self.class_weights[targets]
 
-        return _reduce(loss, self.reduction)
-
-
-class LabelSmoothingCE(nn.Module):
-    """Cross-entropy with label smoothing (matches `F.cross_entropy(label_smoothing=ε)`)."""
-
-    def __init__(self, label_smoothing: float = 0.05, reduction: str = "mean") -> None:
-        super().__init__()
-        self.label_smoothing = label_smoothing
-        self.reduction = reduction
-
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        log_p = F.log_softmax(logits, dim=-1)
-        q = _smoothed_targets(targets, logits.size(-1), self.label_smoothing, log_p)
-        loss = -(q * log_p).sum(dim=-1)
         return _reduce(loss, self.reduction)
 
 

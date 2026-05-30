@@ -26,7 +26,6 @@ __all__ = [
     "TextEncoderConfig",
     "AudioEncoderConfig",
     "FusionConfig",
-    "LoRAConfig",
     "KDConfig",
     "OptimizerConfig",
     "SchedulerConfig",
@@ -34,7 +33,6 @@ __all__ = [
     "FocalLossConfig",
     "ModalityDropoutConfig",
     "CalibrationConfig",
-    "JointConfig",
 ]
 
 
@@ -71,7 +69,7 @@ class EncodersConfig:
     audio: AudioEncoderConfig = field(default_factory=AudioEncoderConfig)
 
 
-# --- Fusion / PEFT / KD ---------------------------------------------------
+# --- Fusion / KD ----------------------------------------------------------
 
 
 @dataclass
@@ -81,14 +79,6 @@ class FusionConfig:
     temperature_init: float = 1.0
     weight_init: float = 0.0
     checkpoint: str | None = None
-
-
-@dataclass
-class LoRAConfig:
-    enabled: bool = False
-    r: int = 8
-    alpha: int = 16
-    target_modules: list[str] = field(default_factory=lambda: ["last_2_transformer_layers"])
 
 
 @dataclass
@@ -105,7 +95,6 @@ class KDConfig:
 class ModelConfig:
     encoders: EncodersConfig = field(default_factory=EncodersConfig)
     fusion: FusionConfig = field(default_factory=FusionConfig)
-    lora: LoRAConfig = field(default_factory=LoRAConfig)
     kd: KDConfig = field(default_factory=KDConfig)
 
 
@@ -152,17 +141,6 @@ class CalibrationConfig:
 
 
 @dataclass
-class JointConfig:
-    """Stage-2 joint fine-tune knobs (§4.2). Fusion scalars are frozen here —
-    they get their own calibration in Phase 11."""
-
-    epochs: int = 8
-    aux_lambda: float = 0.3  # weight on each per-modality auxiliary loss
-    backbone_lr: float = 1.0e-5
-    head_lr: float = 1.0e-4  # §4.2 head LR (distinct from stage-1's 1e-3)
-
-
-@dataclass
 class TrainConfig:
     epochs: int = 15
     batch_size: int = 32
@@ -170,16 +148,11 @@ class TrainConfig:
     grad_clip: float = 1.0
     ema_decay: float = 0.999
     early_stopping_patience: int = 5
-    # Mixup α for image training (§4.1, §4.4). Active only in the last 50% of
-    # epochs; set to 0 to disable Mixup entirely (the documented escape hatch
-    # for when its soft labels conflict with focal loss, §4 detail 5).
-    mixup_alpha: float = 0.2
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     focal_loss: FocalLossConfig = field(default_factory=FocalLossConfig)
     modality_dropout: ModalityDropoutConfig = field(default_factory=ModalityDropoutConfig)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
-    joint: JointConfig = field(default_factory=JointConfig)
 
 
 # --- Paths + Top-level config --------------------------------------------

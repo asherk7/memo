@@ -1,6 +1,6 @@
 """Stage-1 image encoder training (§4.1, §8).
 
-Trains `MobileNetV3SmallFaceEncoder` on FER2013 + AffectNet-7.
+Trains `MobileNetV3SmallFaceEncoder` on FER2013.
 
 Data directory layout expected by this command::
 
@@ -11,8 +11,7 @@ Data directory layout expected by this command::
 The ``path`` column is resolved relative to ``data_dir``; ``label`` is the
 dataset-native integer remapped to Ekman-7 via ``--remap-from``.
 
-Augmentation: RandAugment + flip + random erasing every epoch; Mixup (α=0.2)
-in the last 50% of epochs (image-only, §4.1).
+Augmentation: RandAugment + flip + random erasing every epoch.
 """
 
 from __future__ import annotations
@@ -26,23 +25,22 @@ import torch
 from loguru import logger
 from torch.utils.data import DataLoader, Subset
 
-from ..augment.image import image_train_transform, mixup
+from ..augment.image import image_train_transform
 from ..config import ExperimentConfig
 from ..encoders.base import BaseEncoder
 from ..encoders.image import MobileNetV3SmallFaceEncoder
-from ..labels import EkmanEmotion, remap_affectnet7, remap_fer2013
+from ..labels import EkmanEmotion, remap_fer2013
 from ..preprocessing.face import FaceNotFoundError, preprocess_face
 from ..seed import seed_everything
 from .datasets import CsvDataset, focal_loss_from_labels, stratified_train_val_split
 from .manifest import RunManifest, new_run_id
 from .samplers import ClassBalancedSampler
-from .trainer import BatchHook, LossFn, Trainer
+from .trainer import Trainer
 
 __all__ = ["run_train_image"]
 
 _REMAPPERS: dict[str, Callable[[Any], EkmanEmotion]] = {
     "fer2013": remap_fer2013,
-    "affectnet7": remap_affectnet7,
     "ekman7": lambda x: EkmanEmotion(int(x)),
 }
 
@@ -70,22 +68,6 @@ def _make_image_loader(is_train: bool) -> Callable[[str], torch.Tensor]:
     return _load
 
 
-def _make_mixup_hook(loss_fn: LossFn, total_epochs: int, alpha: float = 0.2) -> BatchHook:
-    """Return a `batch_hook` that applies Mixup in the last 50% of epochs."""
-    mixup_start = max(1, total_epochs // 2)
-
-    def hook(
-        model: BaseEncoder, inputs: torch.Tensor, targets: torch.Tensor, epoch: int
-    ) -> torch.Tensor:
-        if epoch < mixup_start:
-            return loss_fn(model.predict_logits(inputs), targets)
-        mb = mixup(inputs, targets, alpha=alpha)
-        logits = model.predict_logits(mb.images)
-        return mb.lam * loss_fn(logits, mb.labels_a) + (1.0 - mb.lam) * loss_fn(logits, mb.labels_b)
-
-    return hook
-
-
 def run_train_image(
     data_dir: Path,
     *,
@@ -96,7 +78,6 @@ def run_train_image(
     runs_dir: Path = Path("runs"),
     remap_from: str = "fer2013",
     val_split: float = 0.1,
-    mixup_alpha: float | None = None,
     loader: Callable[[str], torch.Tensor] | None = None,
     encoder: BaseEncoder | None = None,
 ) -> Path:
@@ -109,11 +90,8 @@ def run_train_image(
         config: experiment config; defaults to ``ExperimentConfig()``.
         device: torch device string.
         runs_dir: root directory for run artifacts.
-        remap_from: which dataset remapper to apply (``fer2013`` | ``affectnet7``
-            | ``ekman7``).
+        remap_from: which dataset remapper to apply (``fer2013`` | ``ekman7``).
         val_split: fraction of train data to hold out when ``val.csv`` is absent.
-        mixup_alpha: overrides ``config.train.mixup_alpha`` when given; 0 disables
-            Mixup (§4 detail 5).
         loader: custom image-loader for tests (receives resolved path, returns
             ``(3, 112, 112)`` tensor).  ``None`` uses the real face-preprocessing.
         encoder: encoder to train; ``None`` uses pretrained MobileNetV3-Small.
@@ -123,8 +101,6 @@ def run_train_image(
     """
     cfg = config or ExperimentConfig()
     cfg.train.epochs = epochs
-    if mixup_alpha is not None:
-        cfg.train.mixup_alpha = mixup_alpha
     seed_everything(cfg.seed)
 
     remap = _REMAPPERS.get(remap_from)
@@ -166,13 +142,6 @@ def run_train_image(
     # ---- model + loss ---------------------------------------------------
     enc = encoder if encoder is not None else MobileNetV3SmallFaceEncoder(pretrained=True)
     loss_fn = focal_loss_from_labels(train_labels, cfg)
-    # Mixup is opt-out via config: mixup_alpha=0 leaves batch_hook=None so the
-    # Trainer uses the plain loss path with no Mixup overhead (§4 detail 5).
-    hook = (
-        _make_mixup_hook(loss_fn, epochs, cfg.train.mixup_alpha)
-        if cfg.train.mixup_alpha > 0
-        else None
-    )
 
     trainer = Trainer(
         enc,
@@ -180,7 +149,6 @@ def run_train_image(
         cfg.train,
         max_lr=cfg.train.scheduler.max_lr.image,
         device=device,
-        batch_hook=hook,
     )
 
     # ---- train ----------------------------------------------------------

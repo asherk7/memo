@@ -4,8 +4,8 @@ Both adapters are deliberately thin: they parse the manifest file, remap each
 dataset-native label to `EkmanEmotion`, and defer the actual modality loading
 to an injected ``loader`` callable (so the dataset stays decoupled from the
 preprocessing specifics each modality needs). Both expose ``.labels`` as an
-int list so `ClassBalancedSampler` and the stratified k-fold runner can read the
-class distribution without materializing every sample.
+int list so `ClassBalancedSampler` can read the class distribution without
+materializing every sample.
 """
 
 from __future__ import annotations
