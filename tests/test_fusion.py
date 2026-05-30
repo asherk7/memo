@@ -87,3 +87,46 @@ def test_absent_modality_no_contribution() -> None:
 def test_param_count_is_7() -> None:
     fusion = LateFusion()
     assert sum(p.numel() for p in fusion.parameters()) == 7
+
+
+def test_keep_mask_backward_compat() -> None:
+    """The optional per-sample keep_mask adds no params and is a no-op when all-True."""
+    torch.manual_seed(0)
+    fusion = LateFusion()
+    assert sum(p.numel() for p in fusion.parameters()) == 7  # unchanged by the new arg
+
+    logits = {m: torch.randn(4, NUM_CLASSES) for m in MODALITIES}
+    base = fusion.fuse(logits)
+    all_keep = {m: torch.ones(4, dtype=torch.bool) for m in MODALITIES}
+    assert torch.allclose(base.probs, fusion.fuse(logits, keep_mask=all_keep).probs, atol=1e-6)
+
+
+def test_keep_mask_full_drop_equals_omission() -> None:
+    """Dropping a modality for every row matches omitting it from the dict."""
+    torch.manual_seed(3)
+    fusion = LateFusion()
+    logits = {m: torch.randn(4, NUM_CLASSES) for m in MODALITIES}
+    drop_audio = {
+        "image": torch.ones(4, dtype=torch.bool),
+        "text": torch.ones(4, dtype=torch.bool),
+        "audio": torch.zeros(4, dtype=torch.bool),
+    }
+    masked = fusion.fuse(logits, keep_mask=drop_audio)
+    omitted = fusion.fuse({"image": logits["image"], "text": logits["text"]})
+    assert torch.allclose(masked.probs, omitted.probs, atol=1e-6)
+
+
+def test_keep_mask_per_sample() -> None:
+    """A row with one modality dropped fuses exactly the surviving modalities."""
+    torch.manual_seed(4)
+    fusion = LateFusion()
+    logits = {m: torch.randn(3, NUM_CLASSES) for m in MODALITIES}
+    keep = {
+        "image": torch.tensor([True, True, True]),
+        "text": torch.tensor([False, True, True]),
+        "audio": torch.tensor([True, True, True]),
+    }
+    masked = fusion.fuse(logits, keep_mask=keep)
+    # Row 0 (text dropped) must equal fusing only image+audio for that row.
+    row0 = fusion.fuse({m: logits[m][:1] for m in ("image", "audio")})
+    assert torch.allclose(masked.probs[0], row0.probs[0], atol=1e-6)

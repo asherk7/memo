@@ -34,6 +34,7 @@ __all__ = [
     "FocalLossConfig",
     "ModalityDropoutConfig",
     "CalibrationConfig",
+    "JointConfig",
 ]
 
 
@@ -96,6 +97,8 @@ class KDConfig:
     teacher: str = "facebook/wav2vec2-base"
     alpha: float = 0.5
     temperature: float = 4.0
+    probe_epochs: int = 200  # linear-probe fit for the frozen-feature teacher head
+    cache_dir: str | None = None  # teacher-logit cache dir; defaults to the run dir
 
 
 @dataclass
@@ -149,6 +152,17 @@ class CalibrationConfig:
 
 
 @dataclass
+class JointConfig:
+    """Stage-2 joint fine-tune knobs (§4.2). Fusion scalars are frozen here —
+    they get their own calibration in Phase 11."""
+
+    epochs: int = 8
+    aux_lambda: float = 0.3  # weight on each per-modality auxiliary loss
+    backbone_lr: float = 1.0e-5
+    head_lr: float = 1.0e-4  # §4.2 head LR (distinct from stage-1's 1e-3)
+
+
+@dataclass
 class TrainConfig:
     epochs: int = 15
     batch_size: int = 32
@@ -165,6 +179,7 @@ class TrainConfig:
     focal_loss: FocalLossConfig = field(default_factory=FocalLossConfig)
     modality_dropout: ModalityDropoutConfig = field(default_factory=ModalityDropoutConfig)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+    joint: JointConfig = field(default_factory=JointConfig)
 
 
 # --- Paths + Top-level config --------------------------------------------

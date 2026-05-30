@@ -94,7 +94,22 @@ class LateFusion(nn.Module):
             weight_init=cfg.weight_init,
         )
 
-    def fuse(self, per_modality_logits: Mapping[str, torch.Tensor | None]) -> FusionOutput:
+    def fuse(
+        self,
+        per_modality_logits: Mapping[str, torch.Tensor | None],
+        *,
+        keep_mask: Mapping[str, torch.Tensor] | None = None,
+    ) -> FusionOutput:
+        """Fuse per-modality logits into a gated class distribution.
+
+        ``keep_mask`` (optional, keyword-only) carries **per-sample** presence:
+        ``{modality: BoolTensor(B)}`` where ``False`` removes that modality from
+        a sample's gate (``m_i = 0`` for that row). It is the mechanism Phase 10
+        joint fine-tuning and Phase 11 calibration use to apply per-sample
+        modality dropout at the gate — presence stays explicit rather than being
+        inferred from zeroed logits. ``keep_mask=None`` is bit-identical to the
+        all-present batch-level path, so the Phase 5 tests are unaffected.
+        """
         unknown = set(per_modality_logits) - set(self.MODALITIES)
         if unknown:
             raise ValueError(f"Unknown modalities {sorted(unknown)}; expected {self.MODALITIES}.")
@@ -122,7 +137,12 @@ class LateFusion(nn.Module):
 
             probs[m] = p
             confidences[m] = c
-            alphas.append(softmax_w[idx] * c.pow(gamma))
+            alpha = softmax_w[idx] * c.pow(gamma)
+            if keep_mask is not None and m in keep_mask:
+                # Per-sample presence m_i ∈ {0, 1}: a dropped row contributes
+                # nothing to its own gate (renormalized away below).
+                alpha = alpha * keep_mask[m].to(alpha.dtype)
+            alphas.append(alpha)
 
         # (B, |S|) gate logits → renormalize over present modalities.
         alpha = torch.stack(alphas, dim=-1)

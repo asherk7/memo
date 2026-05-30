@@ -80,3 +80,9 @@ train:
   calibration:
     epochs: 200                      # §3.4 — 7 scalars, AdamW, lr=1e-2, seconds on CPU.
     lr: 1.0e-2
+
+  joint:                             # §4.2 — stage-2 joint fine-tune (skippable).
+    epochs: 8
+    aux_lambda: 0.3                  # weight on each per-modality auxiliary loss.
+    backbone_lr: 1.0e-5
+    head_lr: 1.0e-4                  # distinct from stage-1's 1e-3.

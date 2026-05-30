@@ -99,6 +99,9 @@ def run_train_audio(
     runs_dir: Path = Path("runs"),
     remap_from: str = "ravdess",
     val_split: float = 0.1,
+    distill: bool = False,
+    dataset_id: str = "ravdess",
+    cache_dir: Path | None = None,
     loader: Callable[[str], torch.Tensor] | None = None,
     encoder: BaseEncoder | None = None,
     k_fold_splits: int = 5,
@@ -115,6 +118,10 @@ def run_train_audio(
         runs_dir: root directory for run artifacts.
         remap_from: ``ravdess`` | ``cremad`` | ``ekman7``.
         val_split: hold-out fraction when ``val.csv`` is absent (single-run only).
+        distill: if True, dispatch to the Wav2Vec2 knowledge-distillation loop
+            (`distill.run_distill_audio`, §4.4). Single-split only (no k-fold).
+        dataset_id: tag baked into the teacher-logit cache key (distill only).
+        cache_dir: teacher-logit cache dir (distill only); defaults to the run dir.
         loader: custom loader (receives resolved path, returns ``(n_mels, T)``
             tensor). ``None`` uses the real WAV-load + augment + preprocess path.
         encoder: encoder instance; ``None`` builds a fresh ``LogMelCRNNEncoder``.
@@ -123,6 +130,27 @@ def run_train_audio(
     Returns:
         Path to ``manifest.json``.
     """
+    if distill:
+        # KD has its own dual-view data path + teacher-logit cache; route there.
+        # Test-only injection (custom loader / stub teacher / student) is exposed
+        # directly on `run_distill_audio`, not threaded through this command.
+        from .distill import run_distill_audio
+
+        if k_fold:
+            logger.warning("--distill runs a single split; ignoring --k-fold.")
+        return run_distill_audio(
+            data_dir,
+            epochs=epochs,
+            out=out,
+            config=config,
+            device=device,
+            runs_dir=runs_dir,
+            remap_from=remap_from,
+            val_split=val_split,
+            dataset_id=dataset_id,
+            cache_dir=cache_dir,
+        )
+
     cfg = config or ExperimentConfig()
     cfg.train.epochs = epochs
     seed_everything(cfg.seed)
