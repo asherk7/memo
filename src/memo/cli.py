@@ -130,3 +130,39 @@ def train_audio(
         val_split=val_split,
     )
     typer.echo(json.dumps({"manifest": str(manifest_path), "checkpoint": str(out)}))
+
+
+# ---------------------------------------------------------------------------
+# memo calibrate  (Stage 3 / Phase 11 — fusion calibration)
+# ---------------------------------------------------------------------------
+
+
+@app.command("calibrate")
+def calibrate(
+    aligned_val: Path = typer.Option(..., "--aligned-val", help="Aligned multimodal val JSONL."),
+    out: Path = typer.Option(
+        Path("checkpoints/fusion.pt"), help="Calibrated LateFusion checkpoint output."
+    ),
+    modality_dropout: float = typer.Option(
+        0.3, help="Per-sample modality-dropout rate (text uses its own asymmetric rate)."
+    ),
+    remap_from: str = typer.Option("ekman7", help="Aligned-label remapper: ekman7 | ravdess."),
+    config: Path | None = typer.Option(None, help="Optional YAML config path."),
+    device: str = typer.Option("cpu", help="Torch device."),
+    runs_dir: Path = typer.Option(Path("runs"), help="Root dir for run artifacts."),
+) -> None:
+    """Calibrate the 7 fusion scalars under modality dropout (Stage 3)."""
+    from .config import ExperimentConfig
+    from .training.calibrate_fusion import run_calibrate_fusion
+
+    cfg = ExperimentConfig.from_yaml(config) if config else None
+    manifest_path = run_calibrate_fusion(
+        aligned_val,
+        out=out,
+        config=cfg,
+        device=device,
+        runs_dir=runs_dir,
+        modality_dropout=modality_dropout,
+        remap_from=remap_from,
+    )
+    typer.echo(json.dumps({"manifest": str(manifest_path), "checkpoint": str(out)}))
