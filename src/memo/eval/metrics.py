@@ -41,7 +41,9 @@ def _np(x: Any) -> np.ndarray:
     return np.asarray(x)
 
 
-def _labels_preds(probs_or_preds: Any, labels: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+def _labels_preds(
+    probs_or_preds: Any, labels: Any
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
     """Normalize inputs to ``(labels, preds, probs_or_None)``.
 
     Accepts either hard predictions ``(N,)`` or probabilities ``(N, K)``; when

@@ -83,9 +83,7 @@ def benchmark_module(
 ) -> dict[str, Any]:
     """Latency + params + MACs for one module called as ``model(*example_input)``."""
     model.eval()
-    stats: dict[str, Any] = measure_latency(
-        lambda: model(*example_input), runs=runs, warmup=warmup
-    )
+    stats: dict[str, Any] = measure_latency(lambda: model(*example_input), runs=runs, warmup=warmup)
     stats["params"] = count_params(model)
     stats["macs"] = count_macs(model, example_input)
     return stats
@@ -133,9 +131,7 @@ def run_benchmark(
         if name not in inputs:
             logger.warning("no example input for {!r}; skipping", name)
             continue
-        results["encoders"][name] = benchmark_module(
-            model, inputs[name], runs=runs, warmup=warmup
-        )
+        results["encoders"][name] = benchmark_module(model, inputs[name], runs=runs, warmup=warmup)
         logger.info(
             "{}: p95 {:.1f} ms · {} params",
             name,

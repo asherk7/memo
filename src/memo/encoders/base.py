@@ -39,5 +39,20 @@ class BaseEncoder(nn.Module):
         raise NotImplementedError
 
     def to_onnx(self, path: Path, quantize: bool = False) -> None:
-        # FP32 + dynamic-INT8 export with parity checks is Phase 13 (export.py).
-        raise NotImplementedError("ONNX export is implemented in Phase 13 (export.py).")
+        """Export this encoder to ONNX (FP32 + optional INT8) with parity checks.
+
+        Delegates to `export.export_module` using the per-modality input spec for
+        ``self.name``. Imported lazily to avoid an encoders↔export import cycle.
+        """
+        from ..export import encoder_export_spec, export_module
+
+        example_inputs, input_names, dynamic_axes = encoder_export_spec(self.name)
+        export_module(
+            self,
+            Path(path),
+            example_inputs,
+            input_names=input_names,
+            dynamic_axes=dynamic_axes,
+            quantize=quantize,
+            name=self.name,
+        )

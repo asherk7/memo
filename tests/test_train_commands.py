@@ -191,5 +191,3 @@ def test_train_audio_smoke_single(tmp_path: Path) -> None:
 
     _assert_run_produced_artifacts(tmp_path / "runs", ckpt)
     assert manifest_path.name == "manifest.json"
-
-

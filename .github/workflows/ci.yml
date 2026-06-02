@@ -67,10 +67,8 @@ jobs:
           if-no-files-found: ignore
 
   onnx-parity:
-    name: ONNX parity smoke (placeholder)
+    name: ONNX parity smoke
     runs-on: ubuntu-latest
-    # Enabled in Phase 13 once src/memo/export.py and tests/test_export.py exist.
-    if: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

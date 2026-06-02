@@ -71,7 +71,11 @@ def modality_dropout_sweep(
                 fusion.fuse(
                     batch,
                     keep_mask=modality_keep_mask(
-                        n, modalities, rate=rate, text_rate=rate * text_rate_ratio, generator=generator
+                        n,
+                        modalities,
+                        rate=rate,
+                        text_rate=rate * text_rate_ratio,
+                        generator=generator,
                     ),
                 ).probs,
                 labels,

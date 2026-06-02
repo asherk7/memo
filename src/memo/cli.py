@@ -1,19 +1,24 @@
 """MEMO command-line interface (§8).
 
-Entry point registered as ``memo`` in ``pyproject.toml``.  Subcommands are
-wired per-phase; later phases add their own commands to ``train_app`` and the
-top-level ``app`` directly.
+Entry point registered as ``memo`` in ``pyproject.toml``. Every subcommand prints
+a single JSON object to stdout so it composes with shell pipelines.
 
-Currently wired:
+Full surface:
+    memo predict   [--image f] [--text s] [--audio f] [--config y]   → prediction JSON
     memo train image  --data <dir> --epochs N --out <ckpt>
     memo train text   --data <dir> --epochs N --out <ckpt>
     memo train audio  --data <dir> --epochs N [--distill] --out <ckpt>
+    memo calibrate --aligned-val v.jsonl --out <ckpt>                 (Stage 3)
+    memo evaluate  --aligned-test t.jsonl --config y --out <dir>
+    memo benchmark --config y --runs N --out <json>
+    memo export    --config y --out <dir> [--quantize int8]
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -24,6 +29,98 @@ app = typer.Typer(
 )
 train_app = typer.Typer(help="Stage-1 per-modality encoder training.")
 app.add_typer(train_app, name="train")
+
+
+# ---------------------------------------------------------------------------
+# memo predict
+# ---------------------------------------------------------------------------
+
+
+def _prediction_to_json(pred: Any) -> dict[str, Any]:
+    """Serialize an `EmotionPrediction` to a JSON-friendly dict (enum → lower name)."""
+
+    def _probs(d: dict[Any, float]) -> dict[str, float]:
+        return {emotion.name.lower(): value for emotion, value in d.items()}
+
+    return {
+        "label": pred.label.name.lower(),
+        "probs": _probs(pred.probs),
+        "per_modality_probs": {m: _probs(p) for m, p in pred.per_modality_probs.items()},
+        "confidences": {m: float(v) for m, v in pred.confidences.items()},
+        "gate_weights": {m: float(v) for m, v in pred.gate_weights.items()},
+        "used_modalities": list(pred.used_modalities),
+        "abstained": pred.abstained,
+    }
+
+
+@app.command("predict")
+def predict(
+    image: Path | None = typer.Option(None, help="Face image file."),
+    text: str | None = typer.Option(None, help="Utterance text."),
+    audio: Path | None = typer.Option(None, help="Speech audio (WAV) file."),
+    config: Path = typer.Option(
+        Path("configs/default.yaml"), help="YAML config (encoder + calibrated checkpoints)."
+    ),
+) -> None:
+    """Predict emotion from any non-empty subset of image / text / audio (JSON to stdout)."""
+    if image is None and text is None and audio is None:
+        raise typer.BadParameter("supply at least one of --image, --text, --audio.")
+
+    from .config import ExperimentConfig
+    from .pipeline import MultimodalEmotionPipeline
+    from .preprocessing.audio import SAMPLE_RATE
+
+    enc = ExperimentConfig.from_yaml(config).model
+    if all(
+        c is None
+        for c in (
+            enc.encoders.image.checkpoint,
+            enc.encoders.text.checkpoint,
+            enc.encoders.audio.checkpoint,
+            enc.fusion.checkpoint,
+        )
+    ):
+        typer.echo("warning: all checkpoints are null — output is from untrained heads.", err=True)
+
+    pipe = MultimodalEmotionPipeline.from_config(config)
+    image_arr = _read_image(image) if image is not None else None
+    if audio is not None:
+        audio_arr, sample_rate = _read_audio(audio)
+    else:
+        audio_arr, sample_rate = None, SAMPLE_RATE
+
+    try:
+        pred = pipe.predict(
+            image=image_arr, text=text, audio=audio_arr, audio_sample_rate=sample_rate
+        )
+    except ValueError as exc:
+        # e.g. an image-only call where no face was detected — degrade to a clear
+        # CLI error instead of a raw traceback.
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(json.dumps(_prediction_to_json(pred), indent=2))
+
+
+def _read_image(path: Path) -> Any:
+    """Read an image file → (H, W, 3) RGB array (pipeline does the face crop)."""
+    import cv2
+
+    img = cv2.imread(str(path))
+    if img is None:
+        raise typer.BadParameter(f"could not read image: {path}")
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def _read_audio(path: Path) -> tuple[Any, int]:
+    """Read an audio file → (mono float32 waveform, sample_rate)."""
+    import soundfile as sf
+
+    try:
+        waveform, sample_rate = sf.read(str(path), dtype="float32", always_2d=False)
+    except Exception as exc:  # missing / unreadable file → clean CLI error, not a traceback
+        raise typer.BadParameter(f"could not read audio: {path}") from exc
+    if waveform.ndim > 1:
+        waveform = waveform.mean(axis=1)
+    return waveform, int(sample_rate)
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +201,7 @@ def train_audio(
     data: Path = typer.Option(..., help="Data directory with train.csv (path, label)."),
     epochs: int = typer.Option(15, help="Training epochs."),
     out: Path = typer.Option(Path("checkpoints/audio.pt"), help="Checkpoint output path."),
-    distill: bool = typer.Option(
-        False, help="Distill from a frozen Wav2Vec2-Base teacher (§4.4)."
-    ),
+    distill: bool = typer.Option(False, help="Distill from a frozen Wav2Vec2-Base teacher (§4.4)."),
     remap_from: str = typer.Option("ravdess", help="Label remapper: ravdess | cremad | ekman7."),
     config: Path | None = typer.Option(None, help="Optional YAML config path."),
     device: str = typer.Option("cpu", help="Torch device."),
@@ -201,3 +296,21 @@ def benchmark(
 
     results = run_benchmark(config_path=config, runs=runs, out=out)
     typer.echo(json.dumps({"out": str(out), "peak_rss_mb": results["peak_rss_mb"]}))
+
+
+# ---------------------------------------------------------------------------
+# memo export  (Phase 13 — ONNX FP32 + INT8)
+# ---------------------------------------------------------------------------
+
+
+@app.command("export")
+def export(
+    config: Path = typer.Option(..., help="YAML config (loads the encoders to export)."),
+    out: Path = typer.Option(Path("onnx"), help="Output directory for ONNX files."),
+    quantize: str = typer.Option("none", help="Quantization: none | int8."),
+) -> None:
+    """Export each encoder to ONNX FP32 (and optional INT8) with parity checks."""
+    from .export import run_export
+
+    summary = run_export(out, config_path=config, quantize=quantize == "int8")
+    typer.echo(json.dumps({"out": str(out), "total_size_mb": summary["total_size_mb"]}))

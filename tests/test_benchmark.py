@@ -56,9 +56,7 @@ def test_run_benchmark_injected(tmp_path: Path) -> None:
     encoders = {"toy": _StubEncoder()}
     inputs = {"toy": (torch.randn(1, 8),)}
     out = tmp_path / "bench.json"
-    results = run_benchmark(
-        encoders=encoders, example_inputs=inputs, runs=5, warmup=1, out=out
-    )
+    results = run_benchmark(encoders=encoders, example_inputs=inputs, runs=5, warmup=1, out=out)
     assert "toy" in results["encoders"]
     assert results["peak_rss_mb"] > 0.0
     assert out.exists()

@@ -112,7 +112,13 @@ class _StubEncoder(BaseEncoder):
 
 def test_calibrate_run_smoke(tmp_path: Path) -> None:
     records = [
-        {"id": str(i), "image": f"{i}.jpg", "text": "hi", "audio": f"{i}.wav", "label": i % NUM_CLASSES}
+        {
+            "id": str(i),
+            "image": f"{i}.jpg",
+            "text": "hi",
+            "audio": f"{i}.wav",
+            "label": i % NUM_CLASSES,
+        }
         for i in range(16)
     ]
     aligned = tmp_path / "val.jsonl"

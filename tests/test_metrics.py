@@ -69,7 +69,9 @@ def test_matches_sklearn() -> None:
     p = rng.integers(0, 7, size=200)
     assert macro_f1(p, y) == pytest.approx(f1_score(y, p, average="macro"), abs=1e-9)
     assert weighted_f1(p, y) == pytest.approx(f1_score(y, p, average="weighted"), abs=1e-9)
-    assert uar(p, y) == pytest.approx(recall_score(y, p, average="macro", zero_division=0), abs=1e-9)
+    assert uar(p, y) == pytest.approx(
+        recall_score(y, p, average="macro", zero_division=0), abs=1e-9
+    )
 
 
 def test_brier_handcomputed() -> None:

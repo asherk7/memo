@@ -20,7 +20,9 @@ from memo.labels import EkmanEmotion
 def test_parse_ravdess_filename() -> None:
     # 01 full-AV, 01 speech, 06 fearful, 01 normal, 02 "Dogs...", 01 rep, 12 actor.
     meta = parse_ravdess_filename("01-01-06-01-02-01-12.mp4")
-    assert meta == RavdessMeta(modality=1, emotion=6, statement=2, actor=12, ekman=int(EkmanEmotion.FEAR))
+    assert meta == RavdessMeta(
+        modality=1, emotion=6, statement=2, actor=12, ekman=int(EkmanEmotion.FEAR)
+    )
     assert STATEMENTS[meta.statement] == "Dogs are sitting by the door"
 
 
@@ -53,7 +55,9 @@ def test_build_aligned_jsonl(tmp_path: Path) -> None:
             emotion = (actor % 8) + 1
             name = f"01-01-{emotion:02d}-01-{statement:02d}-01-{actor:02d}.mp4"
             (rav / name).write_bytes(b"")  # fake video file
-            (rav / name).with_suffix(".wav").write_bytes(b"")  # matching audio (fake_audio resolves here)
+            (rav / name).with_suffix(".wav").write_bytes(
+                b""
+            )  # matching audio (fake_audio resolves here)
             n_clips += 1
 
     extracted: list[Path] = []

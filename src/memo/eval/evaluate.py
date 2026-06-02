@@ -107,7 +107,10 @@ def _render_markdown(report: dict[str, Any]) -> str:
     for rate, f1 in report["robustness"]["per_rate_macro_f1"].items():
         lines.append(f"| {rate} | {f1:.4f} |")
     if "floor_drop_at_0.3" in report["robustness"]:
-        lines += ["", f"Floor drop at p=0.3: **{report['robustness']['floor_drop_at_0.3']:+.4f}** (target ≤ 0.05)."]
+        lines += [
+            "",
+            f"Floor drop at p=0.3: **{report['robustness']['floor_drop_at_0.3']:+.4f}** (target ≤ 0.05).",
+        ]
     return "\n".join(lines) + "\n"
 
 
