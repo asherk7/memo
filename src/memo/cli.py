@@ -166,3 +166,38 @@ def calibrate(
         remap_from=remap_from,
     )
     typer.echo(json.dumps({"manifest": str(manifest_path), "checkpoint": str(out)}))
+
+
+# ---------------------------------------------------------------------------
+# memo evaluate / benchmark  (Phase 12 — measurement layer)
+# ---------------------------------------------------------------------------
+
+
+@app.command("evaluate")
+def evaluate(
+    aligned_test: Path = typer.Option(..., "--aligned-test", help="Aligned multimodal test JSONL."),
+    config: Path = typer.Option(..., help="YAML config pointing at the calibrated checkpoints."),
+    out: Path = typer.Option(Path("runs/eval"), help="Output dir for report.{json,md}."),
+    remap_from: str = typer.Option("ekman7", help="Aligned-label remapper: ekman7 | ravdess."),
+    device: str = typer.Option("cpu", help="Torch device."),
+) -> None:
+    """Headline metrics + 7-subset ablation + gating + robustness sweep."""
+    from .eval.evaluate import run_evaluate
+
+    report = run_evaluate(
+        aligned_test, out_dir=out, config_path=config, remap_from=remap_from, device=device
+    )
+    typer.echo(json.dumps({"out": str(out), "macro_f1": report["headline"]["macro_f1"]}))
+
+
+@app.command("benchmark")
+def benchmark(
+    config: Path = typer.Option(..., help="YAML config (loads the encoders to benchmark)."),
+    runs: int = typer.Option(100, help="Timed runs per encoder."),
+    out: Path = typer.Option(Path("runs/bench.json"), help="Output JSON path."),
+) -> None:
+    """Per-encoder CPU latency / params / MACs + peak RSS."""
+    from .eval.benchmark import run_benchmark
+
+    results = run_benchmark(config_path=config, runs=runs, out=out)
+    typer.echo(json.dumps({"out": str(out), "peak_rss_mb": results["peak_rss_mb"]}))

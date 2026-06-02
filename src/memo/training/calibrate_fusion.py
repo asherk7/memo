@@ -37,7 +37,12 @@ from .datasets import JsonlDataset
 from .manifest import RunManifest, new_run_id
 from .modality_dropout import modality_keep_mask_from_config
 
-__all__ = ["fit_fusion_scalars", "precompute_logits", "run_calibrate_fusion"]
+__all__ = [
+    "fit_fusion_scalars",
+    "precompute_logits",
+    "run_calibrate_fusion",
+    "default_aligned_loaders",
+]
 
 # Floor for log of the fused probability before NLL — guards log(0) without
 # perturbing a real probability (orders of magnitude below any class mass).
@@ -189,8 +194,8 @@ def _build_encoders(cfg: ExperimentConfig) -> dict[str, BaseEncoder]:
     return {"image": image, "text": text, "audio": audio}
 
 
-def _default_loaders() -> dict[str, Loader]:
-    """Real preprocessing loaders for the aligned JSONL (real-run path)."""
+def default_aligned_loaders() -> dict[str, Loader]:
+    """Real preprocessing loaders for an aligned JSONL (shared by calibrate + evaluate)."""
     from ..preprocessing.audio import SAMPLE_RATE, preprocess_audio
     from ..preprocessing.face import preprocess_face
     from ..preprocessing.text import preprocess_text
@@ -265,7 +270,7 @@ def run_calibrate_fusion(
     logger.info("fusion calibration run {} → {}", run_id, run_dir)
 
     encoders = encoders or _build_encoders(cfg)
-    loaders = loaders or _default_loaders()
+    loaders = loaders or default_aligned_loaders()
     dataset = JsonlDataset(aligned_val, loaders=loaders, remap=remap)
     cached, labels = precompute_logits(dataset, encoders, device=device)
     logger.info("precomputed logits for {} aligned samples", labels.size(0))
