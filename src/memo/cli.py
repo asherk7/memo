@@ -1,4 +1,4 @@
-"""MEMO command-line interface (§8).
+"""MEMO command-line interface.
 
 Entry point registered as ``memo`` in ``pyproject.toml``. Every subcommand prints
 a single JSON object to stdout so it composes with shell pipelines.
@@ -201,7 +201,7 @@ def train_audio(
     data: Path = typer.Option(..., help="Data directory with train.csv (path, label)."),
     epochs: int = typer.Option(15, help="Training epochs."),
     out: Path = typer.Option(Path("checkpoints/audio.pt"), help="Checkpoint output path."),
-    distill: bool = typer.Option(False, help="Distill from a frozen Wav2Vec2-Base teacher (§4.4)."),
+    distill: bool = typer.Option(False, help="Distill from a frozen Wav2Vec2-Base teacher."),
     remap_from: str = typer.Option("ravdess", help="Label remapper: ravdess | cremad | ekman7."),
     config: Path | None = typer.Option(None, help="Optional YAML config path."),
     device: str = typer.Option("cpu", help="Torch device."),
@@ -228,7 +228,7 @@ def train_audio(
 
 
 # ---------------------------------------------------------------------------
-# memo calibrate  (Stage 3 / Phase 11 — fusion calibration)
+# memo calibrate  (Stage 3 — fusion calibration)
 # ---------------------------------------------------------------------------
 
 
@@ -264,7 +264,7 @@ def calibrate(
 
 
 # ---------------------------------------------------------------------------
-# memo evaluate / benchmark  (Phase 12 — measurement layer)
+# memo evaluate / benchmark
 # ---------------------------------------------------------------------------
 
 
@@ -299,7 +299,7 @@ def benchmark(
 
 
 # ---------------------------------------------------------------------------
-# memo export  (Phase 13 — ONNX FP32 + INT8)
+# memo export  (ONNX FP32 + INT8)
 # ---------------------------------------------------------------------------
 
 

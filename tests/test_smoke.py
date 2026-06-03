@@ -1,8 +1,4 @@
-"""Phase 1 acceptance smoke tests.
-
-These codify the criteria listed in ROADMAP.md Phase 1 directly so a green
-`pytest -q` confirms the scaffold is wired correctly.
-"""
+"""Smoke tests confirming the scaffold is wired correctly."""
 
 from __future__ import annotations
 
@@ -87,7 +83,7 @@ def test_seed_numpy_reproducible_in_one_process() -> None:
 
 
 def test_seed_reproducible_across_interpreters(tmp_path: Path) -> None:
-    """Phase 1 acceptance: two fresh interpreters must produce identical draws."""
+    """Two fresh interpreters must produce identical draws."""
     script = tmp_path / "draw.py"
     script.write_text(
         "import numpy as np, torch\n"
@@ -131,7 +127,7 @@ def test_experiment_config_drops_unknown_keys(tmp_path: Path) -> None:
 
 
 def test_public_api_imports() -> None:
-    """Acceptance criterion: the documented imports must succeed."""
+    """The documented imports must succeed."""
     import memo
     from memo import EmotionPrediction  # noqa: F401
     from memo.labels import EkmanEmotion

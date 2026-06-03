@@ -1,4 +1,4 @@
-"""Phase 4 loss math tests."""
+"""Loss math tests."""
 
 from __future__ import annotations
 

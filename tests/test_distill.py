@@ -1,9 +1,8 @@
-"""Phase 9 audio knowledge-distillation tests (§4.4, §11.4).
+"""Audio knowledge-distillation tests.
 
 Fully offline: a counter-instrumented stub teacher replaces Wav2Vec2 so the KD
 math, the teacher-logit cache, and the run plumbing are exercised without any
-HuggingFace download. The real teacher is gated behind MEMO_ALLOW_HF_DOWNLOAD=1
-(a manual / slow path, not PR CI).
+HuggingFace download. The real teacher is gated behind MEMO_ALLOW_HF_DOWNLOAD=1.
 """
 
 from __future__ import annotations
@@ -229,7 +228,7 @@ def test_distill_run_produces_artifacts(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Import isolation: no module outside distill.py references Wav2Vec2 (detail 5)
+# Import isolation: no module outside distill.py references Wav2Vec2
 # ---------------------------------------------------------------------------
 
 
@@ -247,10 +246,9 @@ def test_module_device_infers_teacher_device() -> None:
 
 
 def test_no_wav2vec2_import_outside_distill() -> None:
-    # Roadmap detail 5: no module outside distill.py may *import* the teacher.
-    # We check for the import symbol `Wav2Vec2Model`, not the lowercase model-id
-    # string ("facebook/wav2vec2-base") that legitimately appears in config and
-    # CLI help text.
+    # No module outside distill.py may import the teacher. Check the import symbol
+    # `Wav2Vec2Model`, not the lowercase model-id string ("facebook/wav2vec2-base")
+    # that legitimately appears in config and CLI help text.
     src = Path(__file__).resolve().parent.parent / "src" / "memo"
     offenders = [
         str(py.relative_to(src))

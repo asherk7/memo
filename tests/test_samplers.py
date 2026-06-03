@@ -1,4 +1,4 @@
-"""ClassBalancedSampler tests (Cui 2019, §4.1, Phase 7)."""
+"""ClassBalancedSampler tests (Cui et al. 2019)."""
 
 from __future__ import annotations
 

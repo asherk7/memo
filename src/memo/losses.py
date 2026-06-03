@@ -1,9 +1,9 @@
-"""Loss functions for training (§4.1, §4.4).
+"""Loss functions for training.
 
-`FocalLoss` bakes label smoothing into a single combined loss — focal modulation
+`FocalLoss` bakes label smoothing into a single combined loss: focal modulation
 and smoothing are applied together over a soft target distribution, not stacked
 as two passes (which computes the wrong gradient at the boundary). Plain
-cross-entropy is deliberately avoided; emotion datasets are heavily skewed.
+cross-entropy is avoided since emotion datasets are heavily skewed.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ class FocalLoss(nn.Module):
 
 
 class KDLoss(nn.Module):
-    r"""Hinton knowledge distillation (§4.4).
+    r"""Hinton knowledge distillation.
 
     :math:`\mathcal{L} = \alpha \mathcal{L}_{focal}(s, y)
     + (1-\alpha)\,\tau^2\,\mathrm{KL}(\sigma(t/\tau)\,\|\,\sigma(s/\tau))`.

@@ -1,11 +1,10 @@
-"""Shared training loop (§4.1) — the substrate every stage-1/2 trainer composes.
+"""Shared training loop — the substrate every stage-1/2 trainer composes.
 
-One `Trainer` drives all per-modality runs. It bundles the pieces §4.1 calls
-for: two AdamW param groups (a gently-tuned backbone and a faster head),
-OneCycleLR, an EMA shadow model, gradient clipping, a 3-epoch backbone-freeze
-curriculum, and macro-F1 early stopping with best-weight restore. The encoder is
-modality-agnostic via its `predict_logits` entry point, so image/text/audio all
-reuse the same loop.
+One `Trainer` drives all per-modality runs. It bundles two AdamW param groups
+(a gently-tuned backbone and a faster head), OneCycleLR, an EMA shadow model,
+gradient clipping, a 3-epoch backbone-freeze curriculum, and macro-F1 early
+stopping with best-weight restore. The encoder is modality-agnostic via its
+`predict_logits` entry point, so image/text/audio all reuse the same loop.
 """
 
 from __future__ import annotations
@@ -48,7 +47,7 @@ class TrainResult:
 def build_param_groups(
     model: nn.Module, backbone_lr: float, head_lr: float
 ) -> list[dict[str, Any]]:
-    """Split *trainable* params into a slow backbone group and a fast head group (§4.1).
+    """Split trainable params into a slow backbone group and a fast head group.
 
     Only params with ``requires_grad=True`` are included — frozen backbone weights
     (e.g. a locked MiniLM) don't waste optimizer state. A model without a
@@ -80,7 +79,7 @@ def _ema_avg_fn(
 
 
 class Trainer:
-    """Drives one encoder through the §4.1 training recipe."""
+    """Drives one encoder through the training recipe."""
 
     def __init__(
         self,
@@ -117,7 +116,7 @@ class Trainer:
                 self.model, avg_fn=_ema_avg_fn(config.ema_decay), use_buffers=True
             )
 
-    # --- backbone freeze curriculum (single requires_grad toggle, §4.1) -----
+    # backbone freeze curriculum (single requires_grad toggle)
     def _set_backbone_frozen(self, frozen: bool) -> None:
         # When freeze_backbone_curriculum=False the encoder fully controls
         # requires_grad (e.g. the frozen-MiniLM text path).

@@ -1,4 +1,4 @@
-"""Phase 3 encoder shape + weights tests.
+"""Encoder shape + weights tests.
 
 Shape tests use `pretrained=False` (random init) so they need no weight
 downloads. `test_image_uses_imagenet_weights` exercises the pretrained path and

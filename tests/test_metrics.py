@@ -1,4 +1,4 @@
-"""Phase 12 metric tests — hand-derived fixtures + scikit-learn cross-checks."""
+"""Metric tests — hand-derived fixtures + scikit-learn cross-checks."""
 
 from __future__ import annotations
 

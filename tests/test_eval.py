@@ -1,4 +1,4 @@
-"""Phase 12 eval-orchestration tests: subset ablation, gating, robustness, wiring smoke."""
+"""Eval-orchestration tests: subset ablation, gating, robustness, wiring smoke."""
 
 from __future__ import annotations
 
@@ -52,9 +52,9 @@ def test_gating_comparison_restores_gamma() -> None:
 
 
 def test_gating_comparison_gate_helps() -> None:
-    """A case the confidence gate is *built* for: two uncertain modalities agree on
-    the wrong class, a confident one is correct. γ>0 down-weights the uncertain
-    pair (recovers the truth); γ=0 (equal weight) is out-voted."""
+    """Confidence gate helps: two uncertain modalities agree on the wrong class, a
+    confident one is correct. γ>0 down-weights the uncertain pair (recovers the
+    truth); γ=0 (equal weight) is out-voted."""
     n = 210
     g = torch.Generator().manual_seed(0)
     labels = torch.randint(0, NUM_CLASSES, (n,), generator=g)

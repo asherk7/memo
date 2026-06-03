@@ -1,10 +1,10 @@
-"""Phase 6 end-to-end pipeline tests (§1).
+"""End-to-end pipeline tests.
 
 Uses the conftest `DummyEncoder` stand-ins and patched preprocessing so the test
 exercises pipeline orchestration + the FusionOutput → EmotionPrediction
-reduction without depending on MediaPipe, the HF tokenizer, or real datasets
-(those are covered in Phases 2-3). The patched preprocessors return plain
-tensors the modality-agnostic `DummyEncoder` can flatten.
+reduction without depending on MediaPipe, the HF tokenizer, or real datasets.
+The patched preprocessors return plain tensors the modality-agnostic
+`DummyEncoder` can flatten.
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def test_used_modalities_reflects_actual_use(
     synthetic_audio,  # type: ignore[no-untyped-def]
 ) -> None:
     # All three passed, but the face can't be found → used reflects the survivors
-    # in canonical order, not the inputs the caller passed (§ detail 6).
+    # in canonical order, not the inputs the caller passed.
     def _raise(image, size=112):  # type: ignore[no-untyped-def]
         raise FaceNotFoundError("no face")
 

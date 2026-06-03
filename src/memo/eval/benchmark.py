@@ -1,9 +1,7 @@
-"""CPU benchmark (§6.7) — per-encoder p95 latency, params, MACs, peak RSS.
+"""CPU benchmark — per-encoder p95 latency, params, MACs, peak RSS.
 
-Feeds pillar C: the numbers that justify the §7 CPU targets (image/text p95
-≤ 100 ms, audio ≤ 80 ms, end-to-end ≤ 300 ms FP32). Latency is wall-clock over
-`runs` timed calls after a short warm-up; MACs come from `fvcore`, peak RSS from
-`psutil`.
+Latency is wall-clock over `runs` timed calls after a short warm-up; MACs come
+from `fvcore`, peak RSS from `psutil`.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Phase 14 CLI tests — `memo predict` JSON output, arg validation, help surface."""
+"""CLI tests — `memo predict` JSON output, arg validation, help surface."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Run manifest + model card tests (§4.6, Phase 7)."""
+"""Run manifest + model card tests."""
 
 from __future__ import annotations
 

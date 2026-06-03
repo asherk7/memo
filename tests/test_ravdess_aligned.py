@@ -1,4 +1,4 @@
-"""Phase 11 RAVDESS-aligned builder tests (offline — stubbed frame extraction)."""
+"""RAVDESS-aligned builder tests (offline — stubbed frame extraction)."""
 
 from __future__ import annotations
 

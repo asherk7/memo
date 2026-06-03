@@ -1,8 +1,8 @@
 """Audio encoder: log-mel CRNN — 3-block 1D CNN → BiGRU → attention pooling → head.
 
-Audio is sequence data, so the BiGRU stays (a pure CNN + average pool loses
-utterance-scale prosody, §2.1). The CNN treats the 64 mel bins as input channels
-and convolves along time; attention pooling weights expressive frames rather than
+Audio is sequence data, so the BiGRU stays: a pure CNN + average pool loses
+utterance-scale prosody. The CNN treats the 64 mel bins as input channels and
+convolves along time; attention pooling weights expressive frames rather than
 averaging uniformly.
 """
 
@@ -62,7 +62,7 @@ class LogMelCRNNEncoder(BaseEncoder):
         h = h.transpose(1, 2)  # (B, T', 128)
         h, _ = self.gru(h)  # (B, T', 2*gru_hidden)
         # No padding mask: preprocessing fixes every clip to a 3-s window, so a
-        # batch is never zero-padded to a common length (§ Phase 2 audio).
+        # batch is never zero-padded to a common length.
         weights = torch.softmax(self.attention(h).squeeze(-1), dim=1)  # (B, T')
         pooled = (h * weights.unsqueeze(-1)).sum(dim=1)  # (B, 2*gru_hidden)
         return self.head(pooled)

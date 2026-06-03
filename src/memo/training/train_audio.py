@@ -1,4 +1,4 @@
-"""Stage-1 audio encoder training (§4.1, §8).
+"""Stage-1 audio encoder training.
 
 Trains `LogMelCRNNEncoder` on RAVDESS.
 
@@ -110,7 +110,7 @@ def run_train_audio(
         remap_from: ``ravdess`` | ``cremad`` | ``ekman7``.
         val_split: hold-out fraction when ``val.csv`` is absent.
         distill: if True, dispatch to the Wav2Vec2 knowledge-distillation loop
-            (`distill.run_distill_audio`, §4.4).
+            (`distill.run_distill_audio`).
         dataset_id: tag baked into the teacher-logit cache key (distill only).
         cache_dir: teacher-logit cache dir (distill only); defaults to the run dir.
         loader: custom loader (receives resolved path, returns ``(n_mels, T)``
@@ -122,8 +122,6 @@ def run_train_audio(
     """
     if distill:
         # KD has its own dual-view data path + teacher-logit cache; route there.
-        # Test-only injection (custom loader / stub teacher / student) is exposed
-        # directly on `run_distill_audio`, not threaded through this command.
         from .distill import run_distill_audio
 
         return run_distill_audio(
@@ -152,7 +150,7 @@ def run_train_audio(
     manifest = RunManifest.create(run_id, cfg, [str(data_dir)], cfg.seed)
     logger.info("audio training run {} → {}", run_id, run_dir)
 
-    # ---- dataset --------------------------------------------------------
+    # dataset
     train_loader_fn = loader if loader is not None else _make_audio_loader(is_train=True)
     val_loader_fn = loader if loader is not None else _make_audio_loader(is_train=False)
 

@@ -18,7 +18,7 @@ __all__ = ["EmotionPrediction"]
 class EmotionPrediction:
     """Result of a single multimodal inference.
 
-    Fields mirror §5.1 of ARCHITECTURE.md:
+    Fields:
       - `label`: the argmax of `probs`.
       - `probs`: fused class distribution.
       - `per_modality_probs`: per-modality distribution after T-scaling.

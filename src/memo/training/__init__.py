@@ -1,6 +1,6 @@
-"""Training scaffolding (Phase 7).
+"""Training scaffolding.
 
-The reusable substrate every training command in Phases 8-11 composes:
-a shared `Trainer` loop, dataset adapters, a class-balanced sampler,
-per-sample modality dropout, and run manifests.
+The reusable substrate the training commands compose: a shared `Trainer` loop,
+dataset adapters, a class-balanced sampler, per-sample modality dropout, and
+run manifests.
 """

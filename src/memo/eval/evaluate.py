@@ -1,4 +1,4 @@
-"""`memo evaluate` orchestration (§6) — headline metrics, 7-subset ablation,
+"""`memo evaluate` orchestration — headline metrics, 7-subset ablation,
 gating-on-vs-off, and the robustness sweep, written to a markdown + JSON report.
 
 Reuses `precompute_logits` (frozen encoders → cached logits) so the whole report

@@ -3,9 +3,9 @@
 The MiniLM backbone is frozen and only the ~50K-param head trains.
 
 Sentence embeddings come from attention-masked mean pooling over the backbone's
-*contextual* token embeddings — this is the sentence-transformers convention,
-not a bag-of-embeddings mean-pool (which would discard word order and pretrained
-semantics, §2.1).
+*contextual* token embeddings — the sentence-transformers convention, not a
+bag-of-embeddings mean-pool (which would discard word order and pretrained
+semantics).
 """
 
 from __future__ import annotations

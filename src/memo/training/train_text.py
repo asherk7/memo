@@ -1,4 +1,4 @@
-"""Stage-1 text encoder training (§4.1, §8).
+"""Stage-1 text encoder training.
 
 Trains `MiniLMTextEncoder` on GoEmotions → Ekman-7.
 
@@ -11,8 +11,8 @@ Data directory layout::
 The ``text`` column is the raw sentence; ``label`` is the native GoEmotions
 integer (0–27) when ``--remap-from goemotions``, or 0–6 Ekman when ``ekman7``.
 
-The backbone stays frozen throughout (§4.1: only the ~50K-param head trains).
-The Trainer's backbone-freeze curriculum is disabled so the encoder's own
+The backbone stays frozen throughout (only the ~50K-param head trains). The
+Trainer's backbone-freeze curriculum is disabled so the encoder's own
 ``requires_grad`` setup (frozen MiniLM) is never overwritten.
 """
 
@@ -115,7 +115,6 @@ def run_train_text(
     manifest = RunManifest.create(run_id, cfg, [str(data_dir)], cfg.seed)
     logger.info("text training run {} → {}", run_id, run_dir)
 
-    # ---- datasets -------------------------------------------------------
     # Default text loader is identity (raw string); batch tokenization happens
     # in the collate_fn so padding is correct for the whole batch.
     item_loader: Callable[[str], Any] = loader if loader is not None else (lambda x: x)
@@ -165,7 +164,7 @@ def run_train_text(
         collate_fn=collate,
     )
 
-    # ---- model + loss ---------------------------------------------------
+    # model + loss
     enc = encoder if encoder is not None else MiniLMTextEncoder(pretrained=True)
     loss_fn = focal_loss_from_labels(train_labels, cfg)
 
@@ -180,7 +179,7 @@ def run_train_text(
         freeze_backbone_curriculum=False,
     )
 
-    # ---- train ----------------------------------------------------------
+    # train
     result = trainer.fit(train_dl, val_dl)
     logger.info("text training complete: best_val_macro_f1={:.4f}", result.best_metric or 0.0)
 

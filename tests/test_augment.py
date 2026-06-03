@@ -1,4 +1,4 @@
-"""Phase 4 augmentation tests."""
+"""Augmentation tests."""
 
 from __future__ import annotations
 

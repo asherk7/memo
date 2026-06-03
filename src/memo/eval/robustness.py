@@ -1,14 +1,9 @@
-"""Robustness sweeps (§6.5, trimmed) — the per-sample modality-dropout sweep.
+"""Per-sample modality-dropout robustness sweep.
 
-The headline sweep that defends pillar A's robustness floor: evaluate fused
-macro-F1 under per-sample test-time modality dropout at increasing rates. The
-floor target (§7) is that fused macro-F1 stays within **5 absolute points** of
-the all-present score under p=0.3 dropout.
-
-Operates over cached per-modality logits (encoders frozen), so it's the same
-fast, offline-testable surface the calibration code uses. The audio-SNR / blur /
-typo corruption sweeps in the original §6.5 are a real-run extension (they need
-the raw-input pipeline); only the modality-dropout sweep ships in the trim.
+Evaluates fused macro-F1 under per-sample test-time modality dropout at
+increasing rates; the floor target is that fused macro-F1 stays within 5
+absolute points of the all-present score under p=0.3 dropout. Operates over
+cached per-modality logits (encoders frozen).
 """
 
 from __future__ import annotations
@@ -57,8 +52,8 @@ def modality_dropout_sweep(
     n = labels.size(0)
     generator = torch.Generator().manual_seed(seed)
 
-    # Always sweep rate 0.0 so the floor drop is measured against the *true*
-    # all-present baseline, never a degraded fallback when a caller omits it.
+    # Always sweep rate 0.0 so the floor drop is measured against the true
+    # all-present baseline, even if a caller omits it.
     sweep_rates = sorted({0.0, *(float(r) for r in rates)})
 
     per_rate: dict[float, float] = {}

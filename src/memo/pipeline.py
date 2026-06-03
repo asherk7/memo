@@ -1,4 +1,4 @@
-"""End-to-end inference pipeline (§1, §5.1).
+"""End-to-end inference pipeline.
 
 `MultimodalEmotionPipeline.predict(image=, text=, audio=)` runs only the
 preprocessor → encoder for the modalities the caller actually supplied, hands
@@ -6,9 +6,9 @@ the per-modality logits to `LateFusion`, and reduces the batched `FusionOutput`
 into a single `EmotionPrediction`. Any non-empty subset of the three modalities
 works; an all-`None` call raises.
 
-The preprocessing functions are imported at module scope so they can be patched
-in tests — the pipeline's own job is orchestration and the fusion → prediction
-reduction, not preprocessing (Phase 2) or encoding (Phase 3).
+Preprocessing functions are imported at module scope so they can be patched in
+tests; the pipeline's own job is orchestration and the fusion → prediction
+reduction.
 """
 
 from __future__ import annotations
@@ -35,14 +35,14 @@ __all__ = ["MultimodalEmotionPipeline"]
 
 
 def _probs_to_dict(row: torch.Tensor) -> dict[EkmanEmotion, float]:
-    """Map a `(7,)` probability row to `{EkmanEmotion: float}` (§5.1)."""
+    """Map a `(7,)` probability row to `{EkmanEmotion: float}`."""
     return {EkmanEmotion(i): float(row[i]) for i in range(NUM_CLASSES)}
 
 
 def _maybe_load(module: nn.Module, checkpoint: str | None) -> None:
     """Load a state dict into `module` if a checkpoint path is configured.
 
-    Uses `weights_only=True` (§8) — never unpickle arbitrary objects.
+    Uses `weights_only=True` — never unpickle arbitrary objects.
     """
     if checkpoint is None:
         return
@@ -79,8 +79,7 @@ class MultimodalEmotionPipeline:
         cfg = ExperimentConfig.from_yaml(path)
         enc = cfg.model.encoders
 
-        # Honor the config knobs each encoder accepts: a null `weights` disables
-        # ImageNet pretraining (§2.1) and the text head dropout is forwarded.
+        # A null `weights` disables ImageNet pretraining; text head dropout is forwarded.
         image_encoder = MobileNetV3SmallFaceEncoder(pretrained=bool(enc.image.weights))
         text_encoder = MiniLMTextEncoder(dropout=enc.text.head_dropout)
         audio_encoder = LogMelCRNNEncoder(n_mels=enc.audio.n_mels)
@@ -103,11 +102,11 @@ class MultimodalEmotionPipeline:
         *,
         audio_sample_rate: int = SAMPLE_RATE,
     ) -> EmotionPrediction:
-        """Run inference over whichever modalities are supplied (§1).
+        """Run inference over whichever modalities are supplied.
 
         Raises `ValueError` if all three are `None`. If `image` is supplied but
         no face is found, the image modality is silently dropped and the
-        remaining modalities are used (§1).
+        remaining modalities are used.
         """
         if image is None and text is None and audio is None:
             raise ValueError("predict() requires at least one of image, text, or audio.")
@@ -120,7 +119,7 @@ class MultimodalEmotionPipeline:
             try:
                 face = preprocess_face(image).unsqueeze(0)
             except FaceNotFoundError:
-                face = None  # silent face degradation (§1)
+                face = None  # silent face degradation
             if face is not None:
                 logits["image"] = self.image_encoder.predict_logits(face)
 

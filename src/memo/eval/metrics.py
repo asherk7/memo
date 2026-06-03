@@ -1,16 +1,11 @@
-"""Classification + calibration metrics (§6.1), implemented independently.
+"""Classification + calibration metrics, computed from a confusion matrix or
+directly from probabilities. Inputs accept either NumPy arrays or torch tensors.
 
-Everything is computed from a confusion matrix or directly from probabilities so
-the math is auditable against hand-derived fixtures (tests cross-check against
-scikit-learn). Inputs accept either NumPy arrays or torch tensors.
-
-- **macro-F1**: unweighted mean per-class F1 — the imbalance-robust primary metric.
-- **weighted-F1**: support-weighted mean per-class F1 (comparable to published baselines).
-- **UAR**: unweighted average recall (= macro recall) — the speech-emotion standard.
-- **ECE (15-bin)**: bin-level reliability gap between confidence and accuracy.
-- **Brier**: strictly-proper squared error on the probability simplex.
-
-ECE and Brier probe distinct calibration aspects, so both are reported.
+- macro-F1: unweighted mean per-class F1.
+- weighted-F1: support-weighted mean per-class F1.
+- UAR: unweighted average recall (= macro recall).
+- ECE (15-bin): bin-level reliability gap between confidence and accuracy.
+- Brier: squared error on the probability simplex.
 """
 
 from __future__ import annotations
@@ -84,12 +79,10 @@ def accuracy(probs_or_preds: Any, labels: Any) -> float:
 
 
 def macro_f1(probs_or_preds: Any, labels: Any, num_classes: int = NUM_CLASSES) -> float:
-    """Unweighted mean per-class F1, averaged over **all** ``num_classes``.
+    """Unweighted mean per-class F1, averaged over all ``num_classes``.
 
     A class absent from the slice contributes F1 = 0 (matching scikit-learn's
-    ``average="macro"``). This differs deliberately from `uar`, which averages
-    over *present* classes only — on a full all-present test set the two policies
-    coincide, but they diverge on an incomplete-class slice.
+    ``average="macro"``); `uar` instead averages over present classes only.
     """
     _, _, f1 = per_class_prf(confusion_matrix(probs_or_preds, labels, num_classes))
     return float(f1.mean())

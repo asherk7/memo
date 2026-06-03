@@ -1,21 +1,15 @@
-"""Audio knowledge distillation (§4.4, Phase 9).
+"""Audio knowledge distillation.
 
 A frozen Wav2Vec2-Base teacher distills into the 0.5M-param `LogMelCRNNEncoder`
 student via ``memo train audio --distill``. The teacher's soft targets are
-**precomputed once** per training set and cached to disk, so Wav2Vec2 is never
-re-run epoch over epoch (its ~200 ms CPU forward would blow the training budget).
-The teacher exists only at train time — the inference graph stays the CRNN.
+precomputed once per training set and cached to disk, so Wav2Vec2 is never
+re-run epoch over epoch. The teacher exists only at train time; the inference
+graph stays the CRNN. The real teacher is gated behind
+``MEMO_ALLOW_HF_DOWNLOAD=1``; tests inject a stub teacher and stay offline.
 
-This module is the **only** place that imports Wav2Vec2 (roadmap detail 5); the
-import is function-local inside `Wav2Vec2EmotionTeacher.__init__` so no other
-code path can reach it. CI exercises the KD math through an injected stub teacher
-and never touches HuggingFace; the real teacher is gated behind
-``MEMO_ALLOW_HF_DOWNLOAD=1``.
-
-Teacher vs. student inputs differ: Wav2Vec2 consumes the raw 16 kHz waveform,
-the CRNN consumes the log-mel. The distill data path carries both (a
-`DistillSample`), keyed by an opaque per-clip string so the cache survives the
-class-balanced sampler's reshuffling and the stub tests stay fully offline.
+Wav2Vec2 consumes the raw 16 kHz waveform, the CRNN consumes the log-mel, so the
+distill data path carries both (a `DistillSample`), keyed by an opaque per-clip
+string so the cache survives the class-balanced sampler's reshuffling.
 """
 
 from __future__ import annotations
@@ -87,7 +81,7 @@ class Wav2Vec2EmotionTeacher(nn.Module):
 
     def __init__(self, model_name: str = "facebook/wav2vec2-base") -> None:
         super().__init__()
-        from transformers import Wav2Vec2Model  # isolated local import (roadmap detail 5)
+        from transformers import Wav2Vec2Model  # isolated local import
 
         model = Wav2Vec2Model.from_pretrained(model_name).eval()
         for p in model.parameters():
@@ -124,8 +118,8 @@ def fit_teacher_probe(
 ) -> None:
     """Fit ``teacher.probe`` on frozen mean-pooled features (backbone stays frozen).
 
-    Runs only on the real-teacher path (manual ``MEMO_ALLOW_HF_DOWNLOAD`` gate);
-    the stub-teacher tests inject a ready teacher and never call this.
+    Runs only on the real-teacher path; the stub-teacher tests inject a ready
+    teacher and never call this.
     """
     feats = torch.cat([teacher.features(w.unsqueeze(0).to(device)) for w in waveforms]).detach()
     y = torch.tensor(labels, dtype=torch.long, device=device)
@@ -142,7 +136,7 @@ def fit_teacher_probe(
 def build_teacher(cfg_kd: KDConfig, device: str = "cpu") -> TeacherProtocol:
     """Construct the real Wav2Vec2 teacher. Gated behind ``MEMO_ALLOW_HF_DOWNLOAD=1``.
 
-    Tests inject a stub teacher and never call this, so CI stays offline.
+    Tests inject a stub teacher and never call this.
     """
     import os
 
@@ -177,8 +171,8 @@ def distill_collate(
 ) -> tuple[dict[str, object], torch.Tensor]:
     """Train collate → ``({"logmel", "waveform", "keys"}, labels)``.
 
-    The dict batch survives `Trainer._to_device` intact: tensor values move to
-    the device, the ``keys`` list passes through untouched.
+    Tensor values move to the device under `Trainer._to_device`; the ``keys``
+    list passes through untouched.
     """
     samples, labels = zip(*batch, strict=False)
     return (
@@ -196,8 +190,7 @@ def distill_val_collate(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Val collate → ``(logmel_batch, labels)``.
 
-    Validation evaluates the student's macro-F1 with no teacher in the loop, so
-    the Trainer's `_evaluate` (which calls ``predict_logits(inputs)`` directly)
+    Validation evaluates the student with no teacher in the loop, so `_evaluate`
     gets a plain log-mel tensor, not the train-time dict batch.
     """
     samples, labels = zip(*batch, strict=False)
@@ -252,7 +245,7 @@ class TeacherLogitCache:
             self.misses += len(missing)
             rows = torch.tensor([i for i, _ in missing])
             batch = waveform[rows]
-            # Move to the teacher's device — the precompute pass builds a plain
+            # Move to the teacher's device: the precompute pass builds a plain
             # CPU DataLoader, so a CUDA teacher would otherwise see a CPU input.
             dev = _module_device(teacher)
             if dev is not None and batch.device != dev:
@@ -277,10 +270,10 @@ def precompute_teacher_logits(
 ) -> int:
     """Fill ``cache`` for every clip in ``dataset`` in one ordered pass.
 
-    Returns the number of unique clips cached. Running this before training (an
-    ordered, no-sampler pass) makes the teacher-forward count deterministic — one
-    per unique clip — independent of the class-balanced sampler's with-replacement
-    draws, and guarantees zero teacher forwards during the epochs themselves.
+    Returns the number of unique clips cached. The ordered, no-sampler pass makes
+    the teacher-forward count deterministic (one per unique clip), independent of
+    the class-balanced sampler's with-replacement draws, and guarantees zero
+    teacher forwards during the epochs themselves.
     """
     loader: DataLoader = DataLoader(
         dataset,  # type: ignore[arg-type]
@@ -302,8 +295,8 @@ def precompute_teacher_logits(
 def make_kd_hook(kd_loss: KDLoss, cache: TeacherLogitCache, teacher: TeacherProtocol) -> BatchHook:
     """Build a `Trainer.batch_hook` computing the KD loss from cached teacher logits.
 
-    After `precompute_teacher_logits`, ``cache.get_or_compute`` is a pure lookup
-    here — the teacher never runs during the training epochs.
+    After `precompute_teacher_logits`, ``cache.get_or_compute`` is a pure lookup;
+    the teacher never runs during the training epochs.
     """
 
     def hook(model: BaseEncoder, inputs: object, targets: torch.Tensor, epoch: int) -> torch.Tensor:
@@ -339,8 +332,8 @@ def _make_distill_loader(dataset_id: str, is_train: bool) -> Callable[[str], Dis
 
         import soundfile as sf
 
-        # Read the file once: the bytes feed both the content-addressed cache key
-        # and the decoder (via an in-memory buffer), avoiding a second disk read.
+        # Read once: the bytes feed both the content-addressed cache key and the
+        # decoder (via an in-memory buffer), avoiding a second disk read.
         raw = Path(path).read_bytes()
         key = f"{dataset_id}:{Path(path).stem}:{hashlib.sha256(raw).hexdigest()[:16]}"
         waveform_np, sr = sf.read(io.BytesIO(raw), dtype="float32", always_2d=False)
@@ -371,7 +364,7 @@ def run_distill_audio(
     encoder: BaseEncoder | None = None,
     cache_dir: Path | None = None,
 ) -> Path:
-    """Distill a frozen Wav2Vec2-Base teacher into the CRNN student (§4.4).
+    """Distill a frozen Wav2Vec2-Base teacher into the CRNN student.
 
     Args mirror `run_train_audio`, plus:
         dataset_id: tag baked into the content-addressed cache key.
@@ -400,7 +393,7 @@ def run_distill_audio(
     manifest = RunManifest.create(run_id, cfg, [str(data_dir)], cfg.seed)
     logger.info("audio distillation run {} → {}", run_id, run_dir)
 
-    # ---- dataset (dual-view: student log-mel + teacher waveform) --------
+    # dual-view dataset: student log-mel + teacher waveform
     train_loader_fn = loader if loader is not None else _make_distill_loader(dataset_id, True)
     val_loader_fn = loader if loader is not None else _make_distill_loader(dataset_id, False)
 
@@ -434,7 +427,7 @@ def run_distill_audio(
         collate_fn=distill_val_collate,
     )
 
-    # ---- teacher (+ probe fit on the real path) -------------------------
+    # teacher (+ probe fit on the real path)
     if teacher is None:
         teacher = build_teacher(cfg.model.kd, device)
         if isinstance(teacher, Wav2Vec2EmotionTeacher):
@@ -443,13 +436,13 @@ def run_distill_audio(
                 teacher, waveforms, full_ds.labels, epochs=cfg.model.kd.probe_epochs, device=device
             )
 
-    # ---- precompute teacher logits once (deterministic cache) -----------
+    # precompute teacher logits once (deterministic cache)
     cache_root = cache_dir if cache_dir is not None else run_dir
     cache = TeacherLogitCache(Path(cache_root) / "teacher_logits.pt")
     n_cached = precompute_teacher_logits(train_sub, teacher, cache, batch_size=cfg.train.batch_size)
     logger.info("precomputed {} teacher logits ({} forwards)", n_cached, cache.misses)
 
-    # ---- student + KD loss ---------------------------------------------
+    # student + KD loss
     enc = (
         encoder
         if encoder is not None
@@ -461,7 +454,7 @@ def run_distill_audio(
 
     trainer = Trainer(
         enc,
-        focal,  # placeholder LossFn; the batch_hook owns the real (KD) loss
+        focal,  # placeholder LossFn; the batch_hook owns the real KD loss
         cfg.train,
         max_lr=cfg.train.scheduler.max_lr.audio,
         device=device,

@@ -1,4 +1,4 @@
-"""Phase 2 acceptance tests for the preprocessing layer."""
+"""Tests for the preprocessing layer."""
 
 from __future__ import annotations
 

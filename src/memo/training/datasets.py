@@ -1,4 +1,4 @@
-"""Dataset adapters: single-modality CSV and aligned multimodal JSONL (§8).
+"""Dataset adapters: single-modality CSV and aligned multimodal JSONL.
 
 Both adapters are deliberately thin: they parse the manifest file, remap each
 dataset-native label to `EkmanEmotion`, and defer the actual modality loading
@@ -96,12 +96,12 @@ class CsvDataset(Dataset):
 
 
 class JsonlDataset(Dataset):
-    """Aligned multimodal JSONL adapter (§8 record schema).
+    """Aligned multimodal JSONL adapter.
 
     One JSON object per line: ``id``, optional ``image`` / ``text`` / ``audio``,
-    ``label``, and an optional ``slices`` dict (used by the fairness audit in
-    Phase 12). ``loaders`` maps each present modality to its loader callable;
-    a record missing a modality yields ``None`` for it (so the pipeline drops it).
+    ``label``, and an optional ``slices`` dict (used by the fairness audit).
+    ``loaders`` maps each present modality to its loader callable; a record
+    missing a modality yields ``None`` for it (so the pipeline drops it).
     """
 
     def __init__(

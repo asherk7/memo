@@ -1,4 +1,4 @@
-"""Phase 12 benchmark tests — latency / params / MACs on a stub module."""
+"""Benchmark tests — latency / params / MACs on a stub module."""
 
 from __future__ import annotations
 

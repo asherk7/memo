@@ -1,4 +1,4 @@
-"""Phase 11 fusion-calibration tests (offline, synthetic).
+"""Fusion-calibration tests (offline, synthetic).
 
 The optimization core (`fit_fusion_scalars`) is exercised on synthetic per-modality
 logits — no encoders or real data. A wiring smoke runs `run_calibrate_fusion`
@@ -54,7 +54,7 @@ def test_fit_reduces_nll() -> None:
     assert len(history) == _CALIB.epochs
     # Net decrease: late-epoch mean well below the early-epoch mean.
     assert sum(history[-10:]) / 10 < sum(history[:10]) / 10
-    # Plenty of monotone-decrease steps (roadmap bar: ≥ 50).
+    # Plenty of monotone-decrease steps.
     decreasing = sum(1 for prev, cur in zip(history, history[1:], strict=False) if cur < prev)
     assert decreasing >= 50
 

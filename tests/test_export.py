@@ -1,7 +1,6 @@
-"""Phase 13 ONNX export tests — FP32 + dynamic-INT8 parity on tiny stub models.
+"""ONNX export tests — FP32 + dynamic-INT8 parity on tiny stub models.
 
-Skips when onnx / onnxruntime aren't installed (they're in the [dev] extra, so
-CI's onnx-parity job runs them).
+Skips when onnx / onnxruntime aren't installed.
 """
 
 from __future__ import annotations

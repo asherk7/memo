@@ -3,7 +3,7 @@
 `ModalityEncoder` is the structural Protocol the fusion/pipeline layers type
 against. `BaseEncoder` is the concrete `nn.Module` base the three real encoders
 inherit — it pins `predict_logits` as the inference entry point and centralizes
-the (Phase 13) ONNX export hook so the three encoders don't each reimplement it.
+the ONNX export hook so the three encoders don't each reimplement it.
 """
 
 from __future__ import annotations

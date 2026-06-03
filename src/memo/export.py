@@ -1,13 +1,12 @@
-"""ONNX export (Phase 13, pillar C) — per-encoder FP32 + dynamic INT8 with parity checks.
+"""Per-encoder ONNX export: FP32 + dynamic INT8 with parity checks.
 
-Each encoder exports **independently**; fusion stays pure-numpy at runtime (7
+Each encoder exports independently; fusion stays pure-numpy at runtime (7
 scalars, no ONNX needed). Parity tolerances vs PyTorch: FP32 MAE < 1e-4, dynamic
 INT8 MAE < 5e-2. All encoders export a dynamic batch axis; audio additionally
 exports a dynamic time axis (variable-length log-mel).
 
-The generic core (`export_module`) works on any `nn.Module`; `export_encoders`
-wires the three real encoders with their per-modality input specs. `to_onnx` on
-`BaseEncoder` delegates here.
+`export_module` works on any `nn.Module`; `export_encoders` wires the three real
+encoders with their per-modality input specs.
 """
 
 from __future__ import annotations
@@ -83,12 +82,10 @@ def export_onnx(
     model.eval()
     path.parent.mkdir(parents=True, exist_ok=True)
     with torch.no_grad(), warnings.catch_warnings():
-        # We deliberately use the stable TorchScript exporter (dynamo=False) — the
-        # dynamo exporter is still flaky on transformers models. torch 2.9 flipped
-        # the default to dynamo=True and now deprecates this path ("feature will be
-        # removed", no version given) — revisit when dynamo handles HF attention
-        # masks reliably. Scope the deprecation noise to torch.onnx so a model's
-        # own DeprecationWarnings still surface.
+        # Use the stable TorchScript exporter (dynamo=False); the dynamo exporter
+        # is still flaky on transformers models. torch 2.9 flipped the default to
+        # dynamo=True and deprecates this path. Scope the deprecation filter to
+        # torch.onnx so a model's own DeprecationWarnings still surface.
         warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"torch\.onnx.*")
         torch.onnx.export(
             model,

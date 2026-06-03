@@ -1,8 +1,7 @@
 """Audio preprocessing: resample to 16 kHz → fixed 3-s window → log-mel (64×T).
 
-Stateless and deterministic — SpecAugment and other train-time augmentation
-live in `augment/audio.py`, never here. No pre-emphasis filter (it complicates
-ONNX export for marginal gain).
+Stateless and deterministic — train-time augmentation lives in `augment/audio.py`.
+No pre-emphasis filter (it complicates ONNX export for marginal gain).
 """
 
 from __future__ import annotations

@@ -1,10 +1,7 @@
 """Shared pytest fixtures: synthetic image/text/audio inputs + dummy encoders.
 
-Phase 1 needs these for two reasons:
-  1. Acceptance smoke tests can pull realistic-shape inputs without depending
-     on real datasets.
-  2. Phases 5-6 (`test_fusion.py`, `test_pipeline.py`) consume `DummyEncoder`
-     to verify fusion math against random-init `(B, 7)` logits.
+Lets smoke tests pull realistic-shape inputs without real datasets, and lets the
+fusion tests verify the math against random-init `(B, 7)` logits.
 """
 
 from __future__ import annotations
@@ -44,15 +41,13 @@ def synthetic_logmel() -> torch.Tensor:
     return torch.randn(1, 64, 64)
 
 
-# --- Dummy encoder used by Phase 5+ fusion tests --------------------------
+# --- Dummy encoder used by fusion tests -----------------------------------
 
 
 class DummyEncoder(nn.Module):
     """A stand-in `ModalityEncoder`-compatible module.
 
-    Returns `(B, 7)` logits via a single linear projection over flattened
-    input. The point is shape correctness, not learnable behavior — the real
-    encoders land in Phase 3.
+    Returns `(B, 7)` logits via a single linear projection over flattened input.
     """
 
     def __init__(self, name: str, input_dim: int = 64) -> None:

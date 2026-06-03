@@ -3,9 +3,9 @@
 Input is an RGB image (the rest of the pipeline assumes RGB; any BGR→RGB
 conversion belongs at the OpenCV load boundary, not here). Output is a
 `(3, size, size)` float32 tensor in [0, 1]. Model-specific normalization
-(ImageNet mean/std) is the encoder's job (Phase 3), not preprocessing's.
+(ImageNet mean/std) is the encoder's job, not preprocessing's.
 
-This module is stateless and deterministic. The only randomness in the face
+This module is stateless and deterministic; the only randomness in the face
 path lives in `augment/image.py`.
 """
 
@@ -27,7 +27,7 @@ __all__ = ["FaceNotFoundError", "preprocess_face"]
 class FaceNotFoundError(Exception):
     """Raised when MediaPipe finds no face in a (non-None) input image.
 
-    The pipeline catches this to silently degrade the face modality (§1);
+    The pipeline catches this to silently degrade the face modality;
     preprocessing itself just raises.
     """
 

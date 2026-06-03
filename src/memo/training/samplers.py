@@ -1,9 +1,9 @@
-"""Class-balanced sampler (Cui et al. 2019, §4.1).
+"""Class-balanced sampler (Cui et al. 2019).
 
 Emotion datasets are heavily skewed, so the data layer oversamples minority
 classes using the same effective-number-of-samples weighting that reweights
-`FocalLoss`. This *complements* the loss-side weight rather than replacing it —
-the recipe Cui recommends applies both.
+`FocalLoss`. This complements the loss-side weight rather than replacing it;
+Cui's recipe applies both.
 
 The probability of drawing a sample from class ``c`` is proportional to that
 class's effective-number weight, so over an epoch the class histogram the model

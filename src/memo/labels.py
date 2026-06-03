@@ -56,7 +56,7 @@ _FER2013: dict[int, EkmanEmotion] = {
 
 def remap_fer2013(label: int) -> EkmanEmotion:
     """FER2013 ships labels in the same Ekman-7 order — identity map, kept
-    explicit so a downstream reorder of `EkmanEmotion` would surface here."""
+    explicit so a reorder of `EkmanEmotion` would surface here."""
     return _FER2013[int(label)]
 
 

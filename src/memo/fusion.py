@@ -1,4 +1,4 @@
-"""Confidence-gated late fusion (§3.1) — the conceptual centerpiece.
+"""Confidence-gated late fusion.
 
 `LateFusion` carries exactly 7 trainable scalars: a temperature and a weight
 per modality (3 + 3) plus one sharpness ``gamma``. The abstention threshold is a
@@ -7,8 +7,8 @@ config constant, not a learned parameter.
 For each present modality i the gate computes a temperature-scaled distribution
 ``p_i``, a normalized-inverse-entropy confidence ``c_i``, then mixes the
 distributions with weights ``softmax(w)_i · c_i^gamma`` renormalized over the
-*present* modalities. Absent modalities (``None`` in the input dict) are dropped
-explicitly via a presence mask — never inferred from all-zero logits — so the
+present modalities. Absent modalities (``None`` in the input dict) are dropped
+explicitly via a presence mask, never inferred from all-zero logits, so the
 fused output depends only on the modalities that actually contributed.
 """
 
@@ -30,13 +30,13 @@ __all__ = ["LateFusion", "FusionOutput"]
 # Renorm-denominator floor: guards the degenerate all-confidence-zero case
 # (every present modality maximally uncertain with gamma>0) from a 0/0 NaN.
 # Orders of magnitude below any real gate weight, so it never perturbs the
-# renormalization invariant the tests assert.
+# renormalization.
 _EPS = 1e-12
 
 
 @dataclass(frozen=True)
 class FusionOutput:
-    """Batched fusion result; the pipeline (Phase 6) reduces it per sample.
+    """Batched fusion result; the pipeline reduces it per sample.
 
     Tensor shapes are batch-first: ``probs`` is ``(B, 7)``, the per-modality
     dicts are keyed by the modalities that contributed and hold ``(B, 7)``
@@ -55,10 +55,10 @@ class LateFusion(nn.Module):
     """Confidence-gated convex combination of per-modality distributions.
 
     Temperatures are stored in log-space so they remain strictly positive under
-    gradient calibration (Phase 11) — ``exp`` is monotone and unconstrained, so
-    AdamW can never drive a temperature to zero or negative and break the
-    softmax. The 7 trainable scalars are ``_log_temperature`` (3), ``weight``
-    (3), and ``gamma`` (1).
+    gradient calibration: ``exp`` is monotone and unconstrained, so AdamW can
+    never drive a temperature to zero or negative and break the softmax. The 7
+    trainable scalars are ``_log_temperature`` (3), ``weight`` (3), and
+    ``gamma`` (1).
     """
 
     MODALITIES: tuple[str, ...] = ("image", "text", "audio")
@@ -102,13 +102,12 @@ class LateFusion(nn.Module):
     ) -> FusionOutput:
         """Fuse per-modality logits into a gated class distribution.
 
-        ``keep_mask`` (optional, keyword-only) carries **per-sample** presence:
+        ``keep_mask`` (optional, keyword-only) carries per-sample presence:
         ``{modality: BoolTensor(B)}`` where ``False`` removes that modality from
-        a sample's gate (``m_i = 0`` for that row). It is the mechanism Phase 11
-        calibration uses to apply per-sample modality dropout at the gate —
-        presence stays explicit rather than being inferred from zeroed logits.
-        ``keep_mask=None`` is bit-identical to the
-        all-present batch-level path, so the Phase 5 tests are unaffected.
+        a sample's gate (``m_i = 0`` for that row). This is how calibration
+        applies per-sample modality dropout at the gate, keeping presence
+        explicit rather than inferring it from zeroed logits. ``keep_mask=None``
+        is bit-identical to the all-present batch-level path.
         """
         unknown = set(per_modality_logits) - set(self.MODALITIES)
         if unknown:

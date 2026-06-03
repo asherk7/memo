@@ -1,4 +1,4 @@
-"""Phase 5 late-fusion math tests (§3.1).
+"""Late-fusion math tests.
 
 Exhaustive checks across all 7 non-empty subsets of {image, text, audio}:
 renormalization invariants, the gamma=0 weighted-average reduction, abstention,

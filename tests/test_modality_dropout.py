@@ -1,4 +1,4 @@
-"""Per-sample modality dropout tests (§4.5, Phase 7)."""
+"""Per-sample modality dropout tests."""
 
 from __future__ import annotations
 

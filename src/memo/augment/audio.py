@@ -1,4 +1,4 @@
-"""Audio augmentation (§4.1).
+"""Audio augmentation.
 
 Waveform-domain ops (noise, gain, time-stretch) run before the log-mel transform;
 SpecAugment runs on the resulting log-mel. All are pure functions; randomness is

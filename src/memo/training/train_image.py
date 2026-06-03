@@ -1,4 +1,4 @@
-"""Stage-1 image encoder training (§4.1, §8).
+"""Stage-1 image encoder training.
 
 Trains `MobileNetV3SmallFaceEncoder` on FER2013.
 
@@ -112,7 +112,7 @@ def run_train_image(
     manifest = RunManifest.create(run_id, cfg, [str(data_dir)], cfg.seed)
     logger.info("image training run {} → {}", run_id, run_dir)
 
-    # ---- datasets -------------------------------------------------------
+    # datasets
     train_loader_fn = loader if loader is not None else _make_image_loader(is_train=True)
     val_loader_fn = loader if loader is not None else _make_image_loader(is_train=False)
 
@@ -139,7 +139,7 @@ def run_train_image(
     train_dl = DataLoader(train_sub, batch_size=cfg.train.batch_size, sampler=sampler)
     val_dl = DataLoader(val_ds, batch_size=cfg.train.batch_size * 2)
 
-    # ---- model + loss ---------------------------------------------------
+    # model + loss
     enc = encoder if encoder is not None else MobileNetV3SmallFaceEncoder(pretrained=True)
     loss_fn = focal_loss_from_labels(train_labels, cfg)
 
@@ -151,7 +151,7 @@ def run_train_image(
         device=device,
     )
 
-    # ---- train ----------------------------------------------------------
+    # train
     result = trainer.fit(train_dl, val_dl)
     logger.info("image training complete: best_val_macro_f1={:.4f}", result.best_metric or 0.0)
 
@@ -168,9 +168,7 @@ def _load_image_checkpoint(path: str | Path, device: str = "cpu") -> MobileNetV3
     return enc
 
 
-# ---------------------------------------------------------------------------
 # numpy array image helper (used by the CLI when accepting raw np inputs)
-# ---------------------------------------------------------------------------
 def _np_to_image_tensor(arr: np.ndarray) -> torch.Tensor:
     """Convert a (H, W, 3) RGB uint8 array to the face tensor."""
     return preprocess_face(arr)

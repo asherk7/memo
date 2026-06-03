@@ -1,19 +1,18 @@
-"""Fusion calibration (Stage 3 / Phase 11) — `memo calibrate`, the centerpiece of pillar A.
+"""Fusion calibration — `memo calibrate`.
 
 Fits the 7 `LateFusion` scalars (3 temperatures, 3 weights, 1 sharpness) under
 per-sample modality dropout against an aligned validation set, so the gate
 performs across all 2^3 - 1 = 7 modality subsets rather than only the
 all-present case.
 
-Encoders are **frozen** for the entire run, so their per-modality logits are
-constants w.r.t. the fusion scalars. We exploit that: `precompute_logits` runs
-each encoder over the aligned set exactly **once**, then `fit_fusion_scalars`
-optimizes the 7 scalars over the cached logits — which is why ~200 epochs
-converge in seconds on CPU.
+Encoders are frozen for the entire run, so their per-modality logits are
+constants w.r.t. the fusion scalars. `precompute_logits` runs each encoder over
+the aligned set once, then `fit_fusion_scalars` optimizes the 7 scalars over the
+cached logits, so ~200 epochs converge in seconds on CPU.
 
 The optimization core (`fit_fusion_scalars`) takes cached logits + labels and is
-fully exercisable offline on synthetic data; `run_calibrate_fusion` wires the
-frozen encoders + aligned JSONL around it for the real run.
+exercisable offline on synthetic data; `run_calibrate_fusion` wires the frozen
+encoders + aligned JSONL around it for the real run.
 """
 
 from __future__ import annotations
@@ -86,7 +85,7 @@ def fit_fusion_scalars(
             constants (encoders are frozen).
         labels: ``(N,)`` ground-truth Ekman labels.
         fusion: the `LateFusion` module whose 7 scalars are optimized in place.
-        calibration: epochs + lr (§3.4 defaults: 200 epochs, lr 1e-2).
+        calibration: epochs + lr (defaults: 200 epochs, lr 1e-2).
         dropout: per-sample modality-dropout rates (0.3, text 0.15).
         seed: seeds the dropout-mask generator for a reproducible fit.
 

@@ -1,8 +1,8 @@
 """Image encoder: ImageNet-pretrained MobileNetV3-Small + projection + 7-way head.
 
-ImageNet pretraining is the single largest accuracy lever (§2.1); the weights
-enum is named explicitly so a refactor can't silently drop it to `None`.
-ImageNet mean/std normalization happens here (the encoder owns its model-specific
+ImageNet pretraining is the single largest accuracy lever; the weights enum is
+named explicitly so a refactor can't silently drop it to `None`. ImageNet
+mean/std normalization happens here (the encoder owns its model-specific
 normalization; preprocessing emits a plain [0, 1] tensor).
 """
 

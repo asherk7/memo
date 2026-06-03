@@ -1,4 +1,4 @@
-"""Shared training-loop smoke tests (§4.1, §11.3, Phase 7)."""
+"""Shared training-loop smoke tests."""
 
 from __future__ import annotations
 

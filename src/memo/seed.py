@@ -1,8 +1,7 @@
 """Deterministic seeding for `random`, `numpy`, and `torch` (CPU + CUDA).
 
 Two separate Python interpreters that both call `seed_everything(seed)` and
-then sample from the same RNG must produce byte-identical outputs — the §4.6
-reproducibility contract.
+then sample from the same RNG must produce byte-identical outputs.
 """
 
 from __future__ import annotations

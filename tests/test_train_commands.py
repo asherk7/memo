@@ -1,9 +1,9 @@
-"""Smoke tests for Phase 8 per-modality training commands (§11.3).
+"""Smoke tests for per-modality training commands.
 
 All tests are offline: real encoders/loaders are replaced with tiny stubs so
 MediaPipe, the MiniLM tokenizer, and librosa are never invoked. The focus is
 on the full pipeline — CSV loading → DataLoader → Trainer → checkpoint
-→ manifest + model_card — not on the preprocessing stack (tested in Phase 2-3).
+→ manifest + model_card.
 """
 
 from __future__ import annotations

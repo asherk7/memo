@@ -1,14 +1,13 @@
-"""Per-sample modality dropout (§4.5).
+"""Per-sample modality dropout.
 
-Calibration (Phase 11) must see the same missing-modality conditions it faces
-at inference, so each modality is dropped
-*independently per sample* — never the whole batch at once. A per-batch
-implementation would collapse the within-batch missing-modality diversity the
-gate is supposed to learn from.
+Calibration must see the same missing-modality conditions it faces at inference,
+so each modality is dropped independently per sample, never the whole batch at
+once. A per-batch implementation would collapse the within-batch
+missing-modality diversity the gate is supposed to learn from.
 
-Drop rates are asymmetric: text drops at half the rate of the others, since
-text is usually the highest-quality signal. At least one modality always
-survives per sample (the fusion layer has nothing to fuse otherwise).
+Drop rates are asymmetric: text drops at half the rate of the others, since text
+is usually the highest-quality signal. At least one modality always survives per
+sample (the fusion layer has nothing to fuse otherwise).
 """
 
 from __future__ import annotations
