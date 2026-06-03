@@ -1,65 +1,77 @@
-# Data Setup
+# Data setup
 
-MEMO trains on three public emotion datasets. This document is the source of
-truth for acquiring them: where each is hosted, the expected on-disk layout
-under `data/`, and the label mapping each undergoes en route to Ekman-7.
-Reaching the state described here is a hard prerequisite for **Phase 8**
-(per-modality training).
+`memo` trains on three public emotion datasets. This is the reference for
+acquiring them: where each is hosted, the expected on-disk layout, and the label
+mapping each undergoes en route to Ekman-7. A fourth artifact — the aligned
+trimodal set used for fusion calibration — is derived from RAVDESS (see below).
 
-Run the enumeration any time:
+Enumerate the datasets any time:
 
 ```bash
 python scripts/download_data.py --dry-run
 ```
 
-It prints each dataset's source URL, target path, and license status
-(`auto` = publicly downloadable, `manual` = request access first). Dropping
-`--dry-run` prints per-dataset acquisition instructions.
+It prints each dataset's source URL and target path; dropping `--dry-run` prints
+per-dataset acquisition instructions.
 
-## Expected directory layout
+## Directory layout
 
-All datasets live under a single data root (default `./data`, configurable via
-`paths.data` in `configs/default.yaml` or `--data-root`):
+All datasets live under a single data root (default `./data`):
 
 ```
 data/
 ├── fer2013/        # image — FER2013
 ├── goemotions/     # text  — GoEmotions
-└── ravdess/        # audio — RAVDESS
+├── ravdess/        # audio + video — RAVDESS
+└── aligned/        # built from RAVDESS (frames/ + {train,val,test}.jsonl)
 ```
 
-## Datasets
+## Single-modality datasets
 
-### FER2013 — image · `auto`
+### FER2013 — image
 - **Source**: https://www.kaggle.com/datasets/msambare/fer2013
-- **Acquire**: Kaggle download (needs the `kaggle` CLI and an API token). Unzip
-  into `data/fer2013/`.
+- **Acquire**: Kaggle download (needs the `kaggle` CLI and an API token); unzip into `data/fer2013/`.
 - **Format**: 48×48 grayscale faces, 7 classes already in Ekman order.
-- **Label mapping**: `labels.remap_fer2013` — identity (kept explicit so a
-  reorder of `EkmanEmotion` surfaces here).
+- **Label mapping**: `labels.remap_fer2013` (identity, kept explicit so a reorder of `EkmanEmotion` surfaces here).
 
-### GoEmotions — text · `auto`
+### GoEmotions — text
 - **Source**: https://huggingface.co/datasets/google-research-datasets/go_emotions
-- **Acquire**: Hugging Face `datasets` (`load_dataset("go_emotions", "simplified")`)
-  or the CSV export into `data/goemotions/`.
-- **Label mapping**: `labels.remap_goemotions` — the 28 fine-grained labels
-  collapse to Ekman-7 via the standard categorical mapping (accepts the integer
-  index or the string name).
+- **Acquire**: Hugging Face `datasets` (`load_dataset("go_emotions", "simplified")`), or a CSV export into `data/goemotions/`.
+- **Label mapping**: `labels.remap_goemotions` collapses the 28 fine-grained labels to Ekman-7 (accepts the integer index or the string name).
 
-### RAVDESS — audio · `auto`
+### RAVDESS — audio + video
 - **Source**: https://zenodo.org/records/1188976
-- **Acquire**: Direct Zenodo download of `Audio_Speech_Actors_01-24.zip` (1440
-  clips). Unzip into `data/ravdess/`.
-- **Label mapping**: `labels.remap_ravdess` — the 3rd filename field; `calm`
-  (02) collapses into `neutral` (no Ekman class for it).
+- **Acquire**: the audio-only speech archive (`Audio_Speech_Actors_01-24.zip`, 1440 clips) trains the audio encoder. The **video-speech** archives are also needed — the aligned set extracts face frames from them.
+- **Label mapping**: `labels.remap_ravdess` reads the 3rd filename field; `calm` (02) folds into `neutral`.
 
-## Manifest formats the adapters expect
+## Training file formats
 
 `training/datasets.py` provides two adapters:
 
-- **`CsvDataset`** (single-modality): a CSV with a value column (a file path or
-  inline text) and a label column. The native label is mapped to `EkmanEmotion`
-  via a `remap` callable; relative paths resolve against an optional `root`.
-- **`JsonlDataset`** (aligned multimodal): one JSON object per line —
-  `{"id", "image"?, "text"?, "audio"?, "label"}`. A missing modality key yields
-  `None` for that modality (the pipeline simply drops it).
+- **`CsvDataset`** (single-modality): a CSV with `train.csv` (and optional `val.csv`) holding a value column and a `label` column. For image/audio the value column is `path` (resolved against the data dir); for text it is the inline `text`. Labels are the dataset-native values, mapped via `--remap-from {fer2013|goemotions|ravdess|ekman7}`.
+- **`JsonlDataset`** (aligned multimodal): one JSON object per line — `{"id", "image"?, "text"?, "audio"?, "label"}`. A missing modality key yields `None` for that modality (the pipeline drops it).
+
+## Aligned trimodal set (for fusion calibration)
+
+Fusion calibration needs samples carrying face, text, and audio with one shared
+label. RAVDESS clips provide this: each is a short audiovisual recording of one of
+two fixed sentences, so a single clip yields a face frame (from the video), the
+transcript (text), and the audio. Build it once:
+
+```python
+from pathlib import Path
+from memo.data.ravdess_aligned import build_aligned_jsonl
+
+build_aligned_jsonl(Path("data/ravdess"), Path("data/aligned"))
+```
+
+This parses each RAVDESS filename, extracts a middle-frame face image, pairs it
+with the matching audio WAV and the transcript, and writes `train/val/test.jsonl`
+split by actor (no actor appears in two splits, to avoid identity leakage). The
+default audio resolver looks for the `03-…​.wav` sibling of each video clip; pass a
+custom `resolve_audio=` if your audio lives in a separate tree. Clips with no
+matching audio are skipped with a warning.
+
+The text channel here is intentionally weak — only two distinct sentences across
+the whole corpus — which is a feature: a well-calibrated confidence gate learns to
+down-weight it.
