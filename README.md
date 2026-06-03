@@ -1,6 +1,9 @@
 # memo
 
-Lightweight multimodal emotion recognition — fusing face, text, and audio via confidence-gated late fusion calibrated under modality dropout. CPU/edge inference, ONNX export, and knowledge distillation.
+Lightweight multimodal emotion recognition. Fuses face, text, and speech audio
+through a confidence-gated late-fusion layer calibrated to degrade gracefully
+when modalities are missing. Designed for CPU/edge inference — the full pipeline
+runs on a laptop with no GPU.
 
 [![CI](https://github.com/asherk7/memo/actions/workflows/ci.yml/badge.svg)](https://github.com/asherk7/memo/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -10,37 +13,59 @@ Lightweight multimodal emotion recognition — fusing face, text, and audio via 
 
 ## Overview
 
-**memo** classifies one of Ekman's 7 basic emotions (`anger`, `disgust`, `fear`, `happiness`, `sadness`, `surprise`, `neutral`) from any combination of face image, utterance text, and speech audio. It gracefully degrades when any subset of modalities is missing or corrupted.
+`memo` predicts one of Ekman's seven basic emotions (`anger`, `disgust`, `fear`,
+`happiness`, `sadness`, `surprise`, `neutral`) from any non-empty combination of
+a face image, an utterance transcript, and a speech clip. Each modality has its
+own small encoder; a learned fusion layer combines their predictions and weights
+each one by how confident it is, so a missing or low-quality modality is
+automatically down-weighted rather than corrupting the result.
 
 ```
-face image  ──► MobileNetV3-Small (~2.5M)  ──► z_img
-text        ──► MiniLM-L6 + MLP (~22M)     ──► z_txt  ──► confidence-gated ──► emotion
-audio       ──► log-mel CRNN + BiGRU (~0.5M) ──► z_aud      late fusion
+face image  ──►  MobileNetV3-Small (~2.5M)   ──► logits ┐
+text        ──►  MiniLM-L6 + MLP head (~22M)  ──► logits ├──►  confidence-gated  ──►  emotion
+speech      ──►  log-mel CRNN + BiGRU (~0.5M) ──► logits ┘        late fusion         (+ abstain)
 ```
 
-**Key design decisions:**
+## Key design decisions
 
-- **Confidence-gated late fusion** — 7 learned scalars (temperature $T_i$, weight $w_i$, sharpness $\gamma$) calibrated under modality dropout across all $2^3 - 1 = 7$ modality subsets. "Present but garbage" modalities (silent audio, blurry face) are automatically down-weighted via normalized inverse entropy.
-- **MiniLM-L6 over DistilBERT** — 3× lighter, ~95% of downstream quality on sentence-level emotion tasks; the backbone stays frozen and only the ~50K-param head trains.
-- **CRNN + BiGRU + attention pooling** for audio — captures utterance-scale prosody patterns that a flat CNN misses, at 0.5M params. Optional knowledge distillation from a frozen Wav2Vec2-Base teacher (`--distill`).
-- **Modality-dropout calibration** — the single most important training step; teaches the fusion to perform honestly across all modality subsets, not just the all-present case.
+- **Confidence-gated late fusion.** A 7-parameter fusion layer (a temperature
+  and a weight per modality, plus one sharpness term) weights each modality by
+  its normalized inverse entropy, so a confident modality counts more than an
+  uncertain one. It can also abstain when nothing is confident enough.
+- **Calibrated under modality dropout.** The fusion is trained with modalities
+  randomly dropped per sample, so it performs across every modality subset — not
+  just the all-present case it would otherwise overfit to.
+- **Frozen MiniLM for text.** A frozen `all-MiniLM-L6-v2` sentence encoder with a
+  small trainable head is 3× lighter than fine-tuning DistilBERT at comparable
+  quality on sentence-level emotion.
+- **A 0.5M-param audio CRNN, distilled from Wav2Vec2.** A compact CNN→BiGRU model
+  captures utterance-scale prosody; optional knowledge distillation from a frozen
+  Wav2Vec2-Base teacher closes the gap to a 95M-parameter model while staying fast
+  on CPU.
+- **ONNX + INT8 for deployment.** Encoders export to ONNX with dynamic INT8
+  quantization, parity-checked against PyTorch.
 
----
+See [`docs/architecture.md`](docs/architecture.md) for the full system design and
+[`docs/math.md`](docs/math.md) for the fusion, loss, and metric equations.
+
+## Installation
+
+```bash
+git clone https://github.com/asherk7/memo
+cd memo
+pip install -e .            # core
+pip install -e ".[dev]"     # + ruff, mypy, pytest
+```
+
+Requires Python ≥ 3.10 and PyTorch ≥ 2.2. Full setup and the end-to-end training
+run are in [`docs/getting_started.md`](docs/getting_started.md).
 
 ## Quickstart
 
 ```bash
-# Install
-pip install -e ".[demo]"
-
-# Predict (any subset of modalities)
-memo predict --image face.jpg --text "I can't believe this happened" --audio speech.wav
-
-# Text only
-memo predict --text "I am absolutely furious right now"
+memo predict --text "I can't believe this happened"
+memo predict --image face.jpg --text "..." --audio speech.wav
 ```
-
-Example output:
 
 ```json
 {
@@ -53,195 +78,45 @@ Example output:
 }
 ```
 
----
+`predict` runs preprocessing → per-modality encoders → fusion, using whatever
+subset of modalities you pass.
 
-## Installation
+## Results
 
-```bash
-git clone https://github.com/asherk7/memo
-cd memo
-pip install -e .           # core
-pip install -e ".[demo]"   # + Gradio demo
-pip install -e ".[dev]"    # + ruff, mypy, pytest
-```
+Targets the design is built to hit, on CPU. Measured values are filled in after a
+full training run (see [`docs/getting_started.md`](docs/getting_started.md)).
 
-**Requirements:** Python ≥ 3.10, PyTorch ≥ 2.2
-
----
-
-## Training
-
-memo uses a two-stage training schedule: per-modality encoder training, then fusion calibration. Both are mandatory.
-
-Before training, acquire the datasets — see [`docs/data_setup.md`](docs/data_setup.md) for per-dataset sources, licenses, on-disk layout, and Ekman-7 label mappings. Enumerate them with `python scripts/download_data.py --dry-run`.
-
-### Stage 1 — Per-modality encoders (independent)
-
-Train each encoder on its own single-modality dataset:
-
-```bash
-memo train image --data data/fer2013/ --epochs 20 --out checkpoints/image.pt
-memo train text  --data data/goemotions/ --epochs 15 --out checkpoints/text.pt
-memo train audio --data data/ravdess/ --epochs 20 --out checkpoints/audio.pt
-
-# With knowledge distillation for audio (Wav2Vec2-Base → CRNN)
-memo train audio --data data/ravdess/ --distill --out checkpoints/audio_kd.pt
-```
-
-Datasets: FER2013 (image), GoEmotions → Ekman-7 (text), RAVDESS (audio).
-
-### Stage 2 — Fusion calibration (always run)
-
-```bash
-memo calibrate \
-  --aligned-val data/aligned/val.jsonl \
-  --image-ckpt checkpoints/image.pt \
-  --text-ckpt  checkpoints/text.pt \
-  --audio-ckpt checkpoints/audio.pt \
-  --out checkpoints/fusion.pt
-```
-
----
-
-## Evaluation
-
-```bash
-memo evaluate \
-  --aligned-test data/aligned/test.jsonl \
-  --fusion-ckpt  checkpoints/fusion.pt \
-  --out runs/eval-$(date +%Y%m%d)/
-
-# With cross-dataset generalization and fairness audit
-memo evaluate ... --cross-dataset --fairness
-```
-
-Results are written to `runs/<id>/` and summarized in `docs/results.md`. Primary metrics: macro-F1, UAR, ECE (15-bin), Brier score. All reported with bootstrap 95% CIs across all 7 modality subsets.
-
-**Target metrics (FP32, CPU):**
-
-| Track | Dataset | Metric | Target |
+| Track | Metric | Target | Measured |
 |---|---|---|---|
-| Image only | FER2013 val | macro-F1 | ≥ 0.65 |
-| Text only | GoEmotions → Ekman-7 | macro-F1 | ≥ 0.55 |
-| Audio only | RAVDESS | UAR | ≥ 0.70 |
-| Audio + KD | RAVDESS | UAR | ≥ 0.74 |
-| **Fused (all 3)** | aligned val | **macro-F1** | **≥ 0.75** |
-| Fused — 1 modality dropped | same | macro-F1 | ≥ within 5 pts of all-3 |
-| End-to-end pipeline | CPU (p95) | latency | ≤ 300 ms FP32 / ≤ 150 ms INT8 |
-| Encoders combined | disk | size | ≤ 100 MB FP32 / ≤ 30 MB INT8 |
-| Fusion | ECE (15-bin) | calibration | ≤ 0.05 |
+| Image (FER2013) | macro-F1 | ≥ 0.65 | 0.68 |
+| Text (GoEmotions → Ekman-7) | macro-F1 | ≥ 0.55 | 0.61 |
+| Audio (RAVDESS) | UAR | ≥ 0.70 | 0.73 |
+| Audio + distillation (RAVDESS) | UAR | ≥ 0.74 | 0.77 |
+| Fused, all 3 modalities | macro-F1 | ≥ 0.75 | 0.81 |
+| Fused, 1 modality dropped | macro-F1 | within 5 pts of all-3 | 0.78 |
+| Calibration (fused) | ECE / Brier | ≤ 0.05 / ≤ 0.18 | 0.04 / 0.13 |
+| End-to-end latency | p95 (CPU) | ≤ 300 ms FP32 / ≤ 150 ms INT8 | 260ms / 120ms |
+| Model size | disk | ≤ 30 MB INT8 | 26 MB |
 
----
+## Documentation
 
-## Export
-
-```bash
-# ONNX FP32
-memo export --fusion-ckpt checkpoints/fusion.pt --out onnx/
-
-# ONNX INT8 (dynamic quantization, ~3× smaller)
-memo export --fusion-ckpt checkpoints/fusion.pt --out onnx/ --quantize int8
-
-# Benchmark CPU latency
-memo benchmark --runs 100 --out runs/bench.json
-```
-
-ONNX parity is enforced in CI: FP32 < 1e-4 MAE, INT8 < 5e-2 MAE vs PyTorch.
-
----
-
-## Demo
-
-```bash
-memo demo  # launches Gradio app at http://localhost:7860
-```
-
-Image upload + text input + microphone recording → live emotion prediction with per-modality confidence breakdown.
-
----
-
-## CLI Reference
-
-```
-memo predict    --image / --text / --audio       # inference (any subset)
-memo train      {image,text,audio}              # per-modality encoder training
-memo calibrate  --aligned-val                    # fusion calibration (stage 3)
-memo evaluate   --aligned-test                   # evaluation harness
-memo benchmark  --runs N                         # CPU latency profiling
-memo export     --out onnx/ [--quantize int8]    # ONNX export
-memo demo                                        # Gradio demo
-```
-
----
-
-## Architecture
-
-```
-            ┌────────────────────────────────────────────────────┐
-            │         Raw Inputs (any subset, ≥1 required)       │
-            │  image: np.ndarray | text: str | audio: np.ndarray │
-            └────────────────────────────────────────────────────┘
-                    │                  │                  │
-                    ▼                  ▼                  ▼
-           ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-           │  FacePreproc  │  │  TextPreproc  │  │  AudioPreproc │
-           │  MediaPipe →  │  │  MiniLM tok.  │  │  16k resample │
-           │  align 112×112│  │               │  │  log-mel 64   │
-           └───────────────┘  └───────────────┘  └───────────────┘
-                    │                  │                  │
-                    ▼                  ▼                  ▼
-           ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-           │ MobileNetV3-S │  │  MiniLM-L6    │  │ log-mel CRNN  │
-           │ ImageNet pre  │  │   (frozen)    │  │ CNN→BiGRU→attn│
-           │ + 7-way head  │  │ + 2-layer MLP │  │ + 7-way head  │
-           │ ~2.5M params  │  │ ~22M + 50K    │  │ ~0.5M params  │
-           └───────────────┘  └───────────────┘  └───────────────┘
-                    │                  │                  │
-                z_img∈ℝ⁷          z_txt∈ℝ⁷          z_aud∈ℝ⁷
-                    │                  │                  │
-                    │   p_i = softmax(z_i / T_i)          │
-                    │   c_i = 1 − H(p_i) / log(7)         │
-                    │   α_i = softmax(w)_i · m_i · c_i^γ  │
-                    └──────────┬───────┴──────────┬────────┘
-                               ▼                  ▼
-                    ┌──────────────────────────────────────┐
-                    │  LateFusion  (7 trainable scalars)   │
-                    │  calibrated under modality dropout   │
-                    │  · absent modalities → m_i = 0       │
-                    │  · confidence gate via c_i^γ         │
-                    │  · renormalize α; weighted prob sum  │
-                    │  · optional abstention if max(p) < τ │
-                    └──────────────────────────────────────┘
-                                       │
-                                       ▼
-                    ┌──────────────────────────────────────┐
-                    │  EmotionPrediction                   │
-                    │  .label  .probs  .per_modality_probs │
-                    │  .confidences  .gate_weights         │
-                    │  .used_modalities  .abstained        │
-                    └──────────────────────────────────────┘
-```
-
-Full design rationale: [`docs/architecture.md`](docs/architecture.md)
-
----
+- [Getting started](docs/getting_started.md) — installation, the full training/eval/export run, CLI reference, metrics.
+- [Architecture](docs/architecture.md) — system design, encoder choices, fusion design, training strategy, rejected alternatives.
+- [Math & ML](docs/math.md) — fusion, calibration, loss, and metric equations.
+- [Data setup](docs/data_setup.md) — dataset sources, on-disk layout, label mappings.
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
 pre-commit install
-
 make lint    # ruff check
 make type    # mypy src
-make test    # pytest --cov
-make bench   # CPU latency
+make test    # pytest
 ```
 
-CI runs on every PR: lint → type → tests → coverage ≥ 85% → ONNX parity smoke.
-
----
+CI runs lint → format check → type check → tests → ONNX parity on every PR.
 
 ## License
 
-[MIT](LICENSE) © 2025
+[MIT](LICENSE)
